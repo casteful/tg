@@ -1,102 +1,46 @@
 {
     "default_target": "me",
     "parse_mode": "md",
-    "messages": [
+    "hourly_messages": [
         {
-            "time": "00:00",
-            "content": "🌅 *Good Morning!*\n\nThis is your scheduled reminder for midnight.\n\nHave a great day ahead!"
+            "comment": "Late night hours (00:00-05:59)",
+            "hours": [0, 4, 8, 12, 16, 20],
+            "prefix": "🌙 *Late Night Vibes*",
+            "youtube_search": {
+                "query": "ue5 tutorial",
+                "random": true,
+                "template": "{link}"
+            }
         },
         {
-            "time": "01:00",
-            "content": "☀️ *Morning Reminder!*\n\nTime to start your day!\n\nRemember to check your tasks for today."
+            "comment": "Morning hours (06:00-11:59)",
+            "hours": [1, 5, 9, 13, 17, 21],
+            "prefix": "☀️ *Good Morning!*",
+            "youtube_search": {
+                "query": "unity tutorial",
+                "random": true,
+                "template": "{link}"
+            }
         },
         {
-            "time": "02:00",
-            "content": "🌤️ *Afternoon Check-in!*\n\nHalfway through the day.\n\nHow are your tasks going?"
+            "comment": "Afternoon hours (12:00-17:59)",
+            "hours": [2, 6, 10, 14, 18, 22],
+            "prefix": "🌤️ *Afternoon Boost*",
+            "youtube_search": {
+                "query": "ai tutorial",
+                "random": true,
+                "template": "{link}"
+            }
         },
         {
-            "time": "03:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "04:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "05:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "06:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "07:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "08:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "09:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "10:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "11:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "12:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "13:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "14:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "15:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "16:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "17:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "18:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "19:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "20:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "21:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "22:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
-        },
-        {
-            "time": "23:00",
-            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
+            "comment": "Evening hours (18:00-23:59)",
+            "hours": [3, 7, 11, 15, 19, 23],
+            "prefix": "🌆 *Evening Chill*",
+            "youtube_search": {
+                "query": "new music video",
+                "random": true,
+                "template": "{link}"
+            }
         }
     ]
 }

@@ -1,16 +1,18 @@
-# Telegram Userbot - GitHub Actions Sender
+# Telegram YouTube Sender - GitHub Actions
 
-Send scheduled messages from **your personal Telegram account** using GitHub Actions. This project uses Telethon (MTProto API) to automate your personal account instead of a bot account.
+Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. This project combines Telethon (MTProto API) with yt-dlp to deliver customized video recommendations automatically.
 
 ## ✨ Features
 
 - 🤖 **Personal Account**: Messages appear from YOUR account, not a bot
-- ⏰ **Scheduled Sending**: 4 times daily via GitHub Actions cron
-- 💾 **Session Persistence**: Session survives between GitHub Actions runs
+- 🔍 **YouTube Integration**: Auto-search and share YouTube videos using yt-dlp
+- ⏰ **Hourly Sending**: Runs every hour via GitHub Actions cron
+- 🎲 **Random Videos**: Gets random videos from search results for variety
+- 📅 **Time-based Queries**: Different search queries for different times of day
 - 🔐 **Secure**: All credentials stored as GitHub Secrets
 - 🎯 **Flexible Targets**: Send to users, groups, or channels
-- 📝 **Customizable Messages**: JSON-based message configuration
-- 🔄 **Manual Trigger**: Test messages via workflow_dispatch
+- 📝 **Custom Templates**: Format messages exactly how you want
+- 🔄 **Manual Trigger**: Test via workflow_dispatch with custom queries
 
 ## 📋 Prerequisites
 
@@ -25,170 +27,217 @@ Send scheduled messages from **your personal Telegram account** using GitHub Act
 1. Go to [my.telegram.org](https://my.telegram.org)
 2. Log in with your phone number
 3. Navigate to "API development tools"
-4. Create a new application (if not exists)
+4. Create a new application
 5. Copy your **API ID** and **API Hash**
 
-### Step 2: Run Initial Setup (Required!)
+### Step 2: Run Initial Setup
 
-**Run this locally first** to generate your session string:
+Run this locally to generate your session string:
 
 ```bash
-# Clone or download this project
-cd telegram-userbot-github-actions
-
 # Install dependencies
-pip install -r requirements.txt
+pip install telethon yt-dlp
 
 # Set environment variables
 export TELEGRAM_API_ID="your_api_id"
 export TELEGRAM_API_HASH="your_api_hash"
-export TELEGRAM_PHONE="+1234567890"  # Your phone with country code
 
 # Run setup
 python telegram_sender.py --setup
 ```
 
-The script will:
-1. Send a verification code to your Telegram
-2. Ask you to enter the code
-3. Ask for 2FA password (if enabled)
-4. **Output a session string** - COPY THIS!
+The script will output a **session string** - copy it!
 
 ### Step 3: Configure GitHub Secrets
 
-In your GitHub repository, go to **Settings → Secrets and variables → Actions** and add:
+In your GitHub repository: **Settings → Secrets and variables → Actions**
 
 | Secret Name | Description | Example |
 |-------------|-------------|---------|
-| `TELEGRAM_API_ID` | Your API ID from my.telegram.org | `12345` |
-| `TELEGRAM_API_HASH` | Your API Hash | `a1b2c3d4e5f6...` |
+| `TELEGRAM_API_ID` | Your API ID | `12345` |
+| `TELEGRAM_API_HASH` | Your API Hash | `a1b2c3d4...` |
 | `TELEGRAM_SESSION_STRING` | Session string from setup | `1AZWarz...` |
-| `TELEGRAM_TARGET_ENTITY` | Where to send messages | `@username` or `me` |
+| `TELEGRAM_TARGET_ENTITY` | Where to send | `me` or `@username` |
 
-#### Target Entity Options:
-- `me` - Send to "Saved Messages" (yourself)
-- `@username` - Send to a user by username
-- `+1234567890` - Send to a phone number
-- `123456789` - Send to a chat/channel ID
-- `group_name` - Send to a group
+### Step 4: Customize Messages
 
-### Step 4: Customize Your Messages
-
-Edit `messages.json` to set your messages:
+Edit `messages.json` to configure your hourly YouTube searches:
 
 ```json
 {
     "default_target": "me",
     "parse_mode": "md",
-    "messages": [
+    "hourly_messages": [
         {
-            "time": "00:00",
-            "content": "🌅 *Good Morning!*\n\nYour midnight reminder."
+            "hours": [0, 1, 2, 3, 4, 5],
+            "prefix": "🌙 *Late Night Vibes*",
+            "youtube_search": {
+                "query": "lofi hip hop radio night",
+                "random": true,
+                "template": "🎵 *{title}*\n\n📺 {channel}\n🔗 {link}"
+            }
         },
         {
-            "time": "06:00",
-            "content": "☀️ *Morning!*\n\nStart your day right!"
-        },
-        {
-            "time": "12:00",
-            "content": "🌤️ *Afternoon!*\n\nHalfway there!"
-        },
-        {
-            "time": "18:00",
-            "content": "🌙 *Evening!*\n\nTime to wrap up."
+            "hours": [6, 7, 8, 9, 10, 11],
+            "prefix": "☀️ *Good Morning!*",
+            "youtube_search": {
+                "query": "morning motivation music",
+                "random": true
+            }
         }
     ]
 }
 ```
 
-### Step 5: Push to GitHub and Enable Actions
+### Step 5: Push to GitHub
 
-1. Push the code to your GitHub repository
+1. Push the code to your repository
 2. Go to **Actions** tab
 3. Enable GitHub Actions if prompted
-4. The workflow will run automatically at scheduled times
+4. Messages will be sent every hour automatically!
 
-## 📅 Schedule Configuration
+## 🎬 YouTube Search Configuration
 
-The default schedule runs **4 times a day** (every 6 hours):
+### Message Template Placeholders
 
-```yaml
-schedule:
-  - cron: '0 */6 * * *'  # 00:00, 06:00, 12:00, 18:00 UTC
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `{title}` | Video title | "Lofi Hip Hop Radio" |
+| `{link}` | YouTube URL | "https://youtube.com/watch?v=..." |
+| `{channel}` | Channel name | "Lofi Girl" |
+| `{duration}` | Video length | "3:45:22" |
+| `{views}` | View count | "10M views" |
+
+### Example Configurations
+
+**Simple music recommendation:**
+```json
+{
+    "hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+    "youtube_search": {
+        "query": "lofi beats",
+        "random": true,
+        "template": "🎵 {title}\n\n🔗 {link}"
+    }
+}
 ```
 
-### Custom Schedule Examples:
+**UE5 Tutorials:**
+```json
+{
+    "youtube_search": {
+        "query": "ue5 tutorial beginner",
+        "random": true,
+        "max_results": 20,
+        "template": "🎮 **UE5 Tutorial**\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
+    }
+}
+```
 
+**Time-based categories:**
+```json
+{
+    "hourly_messages": [
+        {
+            "hours": [6, 7, 8],
+            "youtube_search": { "query": "morning workout music" }
+        },
+        {
+            "hours": [9, 10, 11, 12, 13, 14, 15, 16, 17],
+            "youtube_search": { "query": "focus music study" }
+        },
+        {
+            "hours": [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5],
+            "youtube_search": { "query": "relaxing evening music" }
+        }
+    ]
+}
+```
+
+**Learning content:**
+```json
+{
+    "youtube_search": {
+        "query": "python programming tutorial",
+        "random": true,
+        "template": "📚 *Daily Learning*\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
+    }
+}
+```
+
+## ⏰ Schedule Configuration
+
+**Default: Every hour**
 ```yaml
-# Every hour
-- cron: '0 * * * *'
+schedule:
+  - cron: '0 * * * *'  # Every hour at minute 0
+```
 
-# Twice daily (8 AM and 8 PM UTC)
-- cron: '0 8,20 * * *'
+**Custom schedules:**
+```yaml
+# Every 2 hours
+- cron: '0 */2 * * *'
 
-# Every 4 hours
-- cron: '0 */4 * * *'
+# Every 30 minutes
+- cron: '*/30 * * * *'
 
-# Specific times: 9 AM and 6 PM UTC
-- cron: '0 9,18 * * *'
+# Every 6 hours
+- cron: '0 */6 * * *'
 ```
 
 ## 🧪 Testing
 
-### Manual Trigger via GitHub UI
-
-1. Go to **Actions** tab
-2. Select "Telegram Scheduled Sender"
-3. Click "Run workflow"
-4. Optionally enter a custom message
-5. Click "Run workflow"
-
-### Local Testing
-
+### Test YouTube Search Locally
 ```bash
-export TELEGRAM_API_ID="your_api_id"
-export TELEGRAM_API_HASH="your_api_hash"
-export TELEGRAM_SESSION_STRING="your_session_string"
-export TELEGRAM_TARGET_ENTITY="me"
-
-python telegram_sender.py
+python telegram_sender.py --test-youtube
 ```
 
-## 🔒 Security Best Practices
+### Test Full Message Send
+```bash
+python test_send.py
+```
 
-1. **Never commit secrets** to the repository
-2. **Use GitHub Secrets** for all sensitive data
-3. **Limit repository access** - secrets are visible to collaborators
-4. **Enable 2FA** on your Telegram account
-5. **Regenerate session** if compromised: re-run `--setup`
+### Manual Trigger on GitHub
+1. Go to **Actions** tab
+2. Select the workflow
+3. Click "Run workflow"
+4. Optionally enter a custom YouTube query
+5. Click "Run workflow"
+
+## ⚠️ Node.js Deprecation Fix
+
+This project includes the fix for the Node.js 20 deprecation warning:
+
+```yaml
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+```
+
+This forces GitHub Actions to use Node.js 24, avoiding the deprecation warning.
+
+## 📦 Dependencies
+
+This project uses **yt-dlp** for YouTube searches, which is:
+- ✅ Actively maintained
+- ✅ No API key required
+- ✅ Works reliably without rate limiting issues
+- ✅ Provides video metadata (title, duration, views, etc.)
 
 ## ⚠️ Important Notes
 
-### Telegram Terms of Service
+### Telegram Rate Limits
 
-Automating personal accounts may violate Telegram's ToS if used for spam. This tool is intended for:
+For hourly messages (24 per day), you're well within Telegram's limits:
+- ~30 messages/second to different chats
+- ~5 messages/second to same chat
+
+### Telegram ToS
+
+Use responsibly for:
 - ✅ Personal reminders
 - ✅ Self-notifications
-- ✅ Content you own
-- ❌ Spam or unsolicited messages
-- ❌ Bulk messaging
-
-### Rate Limits
-
-Telegram has rate limits for userbots:
-- ~30 messages/second to different chats
-- ~5 messages/second to the same chat
-
-For 4 messages per day, you're well within limits.
-
-### Session Persistence
-
-Two methods are provided:
-
-1. **Session String (Recommended)**: Stored as GitHub Secret, works reliably
-2. **Artifacts**: Session file uploaded/downloaded between runs (backup method)
-
-The workflow tries the artifact method first, falls back to session string.
+- ✅ Your own content
+- ❌ Spam or bulk messaging
 
 ## 📁 Project Structure
 
@@ -196,44 +245,40 @@ The workflow tries the artifact method first, falls back to session string.
 telegram-userbot-github-actions/
 ├── .github/
 │   └── workflows/
-│       └── telegram-sender.yml    # GitHub Actions workflow
-├── telegram_sender.py              # Main Python script
-├── messages.json                   # Message configuration
-├── requirements.txt                # Python dependencies
-└── README.md                       # This file
+│       ├── telegram-sender.yml        # Main workflow
+│       └── telegram-sender-simple.yml # Simplified workflow
+├── telegram_sender.py                  # Main script with YouTube support
+├── setup.py                            # Session setup helper
+├── test_send.py                        # Local testing script
+├── messages.json                       # Message configuration
+├── requirements.txt                    # Dependencies
+└── README.md                           # Documentation
 ```
 
 ## 🐛 Troubleshooting
 
+### "yt-dlp not installed"
+```bash
+pip install yt-dlp
+```
+
+### "No YouTube results found"
+- Check your search query
+- Try simpler keywords
+- Check your internet connection
+
 ### "Session not authorized"
-- Re-run `python telegram_sender.py --setup` locally
+- Re-run `python telegram_sender.py --setup`
 - Update `TELEGRAM_SESSION_STRING` secret
-
-### "API ID invalid"
-- Check credentials at my.telegram.org
-- Ensure `TELEGRAM_API_ID` is a number (no quotes in secret)
-
-### "Entity not found"
-- Check `TELEGRAM_TARGET_ENTITY` format
-- For users: try `@username` or phone number
-- For channels: use channel ID with `-100` prefix
-
-### "2FA password required"
-- Run `--setup` locally with your 2FA password
-- Session string includes authentication
 
 ### Workflow not running
 - Check Actions tab for errors
-- Verify all secrets are set correctly
-- Ensure workflow is enabled
+- Verify all 4 secrets are set
+- Ensure workflow file is in `.github/workflows/`
 
 ## 📜 License
 
 MIT License - Use responsibly!
-
-## 🤝 Contributing
-
-Feel free to open issues or submit PRs for improvements!
 
 ---
 

@@ -1,114 +1,29 @@
-name: Telegram Scheduled Sender
+name: Telegram YouTube Sender
 
 on:
-  # Schedule: 4 times a day (every 6 hours)
-  # Times are in UTC: 00:00, 06:00, 12:00, 18:00
+  # Schedule: Every hour
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 * * * *'  # Runs at minute 0 of every hour
   
-  # Allow manual trigger for testing
+  # Manual trigger for testing
   workflow_dispatch:
     inputs:
-      message:
-        description: 'Custom message to send (optional)'
+      youtube_query:
+        description: 'YouTube search query (optional)'
+        required: false
+        default: ''
+      custom_message:
+        description: 'Custom message prefix (optional)'
         required: false
         default: ''
 
+# Force Node.js 24 to avoid deprecation warning
 env:
-  PYTHON_VERSION: '3.11'
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  send-telegram-message:
+  send-message:
     runs-on: ubuntu-latest
-    
-    steps:
-      # Step 1: Checkout repository
-      - name: 📥 Checkout repository
-        uses: actions/checkout@v4
-      
-      # Step 2: Setup Python
-      - name: 🐍 Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-      
-      # Step 3: Install dependencies
-      - name: 📦 Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-      
-      # Step 4: Download session artifact from previous run
-      - name: 📂 Download session artifact
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: telegram-session
-          path: ./session
-      
-      # Step 5: Restore session file if exists
-      - name: 🔄 Restore session
-        run: |
-          if [ -f "./session/telegram_session.session" ]; then
-            cp ./session/telegram_session.session ./telegram_session.session
-            echo "✅ Session restored from artifact"
-          else
-            echo "⚠️ No previous session found, will use session string"
-          fi
-      
-      # Step 6: Create messages.json if custom message provided
-      - name: ✏️ Create custom message
-        if: ${{ github.event.inputs.message != '' }}
-        run: |
-          cat > messages.json << EOF
-          {
-            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
-            "parse_mode": "md",
-            "messages": [
-              {
-                "time": "now",
-                "content": "${{ github.event.inputs.message }}"
-              }
-            ]
-          }
-          EOF
-      
-      # Step 7: Run the Telegram sender
-      - name: 🚀 Send Telegram message
-        env:
-          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
-          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
-          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
-          TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
-          TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
-          MESSAGE_FILE: 'messages.json'
-        run: |
-          python telegram_sender.py
-      
-      # Step 8: Save session artifact for next run
-      - name: 💾 Save session artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: telegram-session
-          path: ./telegram_session.session
-          retention-days: 90
-          overwrite: true
-      
-      # Step 9: Report status
-      - name: 📊 Report status
-        if: always()
-        run: |
-          echo "======================================"
-          echo "Telegram Sender Job Completed"
-          echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          echo "======================================"
-
-  # Alternative approach using session string (simpler, recommended)
-  send-telegram-simple:
-    runs-on: ubuntu-latest
-    if: ${{ secrets.TELEGRAM_SESSION_STRING != '' }}
     
     steps:
       - name: 📥 Checkout repository
@@ -117,7 +32,7 @@ jobs:
       - name: 🐍 Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: '3.11'
           cache: 'pip'
       
       - name: 📦 Install dependencies
@@ -125,28 +40,37 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      - name: ✏️ Create custom message
-        if: ${{ github.event.inputs.message != '' }}
+      - name: ✏️ Prepare custom message
+        if: ${{ github.event.inputs.youtube_query != '' || github.event.inputs.custom_message != '' }}
         run: |
-          cat > messages.json << EOF
+          cat > messages.json << 'EOF'
           {
             "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
             "parse_mode": "md",
-            "messages": [
+            "hourly_messages": [
               {
-                "time": "now",
-                "content": "${{ github.event.inputs.message }}"
+                "hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                "prefix": "${{ github.event.inputs.custom_message }}",
+                "youtube_search": {
+                  "query": "${{ github.event.inputs.youtube_query || 'music' }}",
+                  "random": true,
+                  "template": "🎬 **{title}**\n\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
+                }
               }
             ]
           }
           EOF
       
-      - name: 🚀 Send Telegram message (Session String)
+      - name: 🚀 Send Telegram message with YouTube link
         env:
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
           TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
-          MESSAGE_FILE: 'messages.json'
+        run: python telegram_sender.py
+      
+      - name: ✅ Done
         run: |
-          python telegram_sender.py
+          echo "======================================"
+          echo "Message sent at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "======================================"

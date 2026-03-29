@@ -1,21 +1,24 @@
-name: Telegram Scheduled Sender (Simple)
+name: Telegram YouTube Sender (Simple)
 
-# This workflow uses Session String only - the simplest and most reliable method
-# Recommended for most users
+# Simplified workflow - recommended for most users
+# Uses only Session String for authentication
 
 on:
-  # Schedule: 4 times a day (every 6 hours) in UTC
-  # Adjust times as needed for your timezone
+  # Schedule: Every hour
   schedule:
-    - cron: '0 * * * *'  # 00:00, 06:00, 12:00, 18:00 UTC
+    - cron: '0 * * * *'
   
   # Manual trigger for testing
   workflow_dispatch:
     inputs:
-      message:
-        description: 'Custom message (optional, leave empty for scheduled message)'
+      youtube_query:
+        description: 'YouTube search query (leave empty for default)'
         required: false
         default: ''
+
+# Force Node.js 24 to avoid deprecation warning
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   send-message:
@@ -34,13 +37,27 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install telethon cryptg
+          pip install telethon cryptg yt-dlp
       
-      - name: ✏️ Prepare message
+      - name: ✏️ Override with custom query
+        if: ${{ github.event.inputs.youtube_query != '' }}
         run: |
-          if [ -n "${{ github.event.inputs.message }}" ]; then
-            echo '{"default_target":"${{ secrets.TELEGRAM_TARGET_ENTITY }}","parse_mode":"md","messages":[{"time":"now","content":"${{ github.event.inputs.message }}"}]}' > messages.json
-          fi
+          cat > messages.json << 'JSONEOF'
+          {
+            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
+            "parse_mode": "md",
+            "hourly_messages": [
+              {
+                "hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
+                "youtube_search": {
+                  "query": "${{ github.event.inputs.youtube_query }}",
+                  "random": true,
+                  "template": "🎬 **{title}**\n\n📺 {channel}\n\n🔗 {link}"
+                }
+              }
+            ]
+          }
+          JSONEOF
       
       - name: 🚀 Send Telegram message
         env:
@@ -50,5 +67,5 @@ jobs:
           TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
         run: python telegram_sender.py
       
-      - name: ✅ Done
-        run: echo "Message sent at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+      - name: ✅ Complete
+        run: echo "✅ Message sent at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
