@@ -61,19 +61,24 @@ class YouTubeTester:
         """Get videos from a channel."""
         print(f"\n📺 Getting videos from channel: '{channel}' (sort: {sort_by})\n")
         
-        # Determine channel URL
+        # Determine channel URL - append /videos to get the videos tab
         if 'youtube.com' in channel:
-            channel_url = channel
+            channel_url = channel.rstrip('/')
+            if not channel_url.endswith('/videos'):
+                channel_url += '/videos'
         elif channel.startswith('@'):
-            channel_url = f"https://www.youtube.com/{channel}"
+            channel_url = f"https://www.youtube.com/{channel}/videos"
         else:
-            channel_url = f"https://www.youtube.com/@{channel.replace(' ', '')}"
+            channel_url = f"https://www.youtube.com/@{channel.replace(' ', '')}/videos"
+        
+        print(f"   📺 Accessing: {channel_url}")
         
         ydl_opts = {
             'quiet': True,
-            'extract_flat': True,
+            'extract_flat': 'in_playlist',
             'no_warnings': True,
             'playlistend': max_results,
+            'extractor_args': {'youtube': {'player_client': ['web']}},
         }
         
         videos = []
@@ -93,8 +98,12 @@ class YouTubeTester:
                                 'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
                             })
             except Exception as e:
-                print(f"⚠️ Direct access failed, trying search...")
-                return self.search(f"channel:{channel}", max_results, sort_by)
+                print(f"⚠️ Direct access failed: {e}")
+        
+        # Fallback to search if no videos found
+        if not videos:
+            print(f"   🔄 Trying search fallback...")
+            return self.search(channel, max_results * 2, sort_by)
         
         return self._sort_videos(videos, sort_by)
     

@@ -129,23 +129,32 @@ class YouTubeSearcher:
             List of video dictionaries from the channel
         """
         try:
-            # Determine if it's a URL or a channel name
+            # Determine channel URL
             if 'youtube.com' in channel_identifier or 'youtu.be' in channel_identifier:
-                channel_url = channel_identifier
+                # Already a URL - ensure it ends with /videos
+                channel_url = channel_identifier.rstrip('/')
+                if not channel_url.endswith('/videos'):
+                    channel_url += '/videos'
             elif channel_identifier.startswith('@'):
-                channel_url = f"https://www.youtube.com/{channel_identifier}"
+                # Handle format: @MrBeast
+                channel_url = f"https://www.youtube.com/{channel_identifier}/videos"
             elif channel_identifier.startswith('UC') and len(channel_identifier) == 24:
-                # YouTube channel ID
-                channel_url = f"https://www.youtube.com/channel/{channel_identifier}"
+                # YouTube channel ID format: UC...
+                channel_url = f"https://www.youtube.com/channel/{channel_identifier}/videos"
             else:
-                # Assume it's a channel handle or name
-                channel_url = f"https://www.youtube.com/@{channel_identifier.replace(' ', '')}"
+                # Assume it's a channel name - convert to @handle format
+                # Remove spaces and special characters
+                handle = channel_identifier.replace(' ', '').replace('"', '').replace("'", '')
+                channel_url = f"https://www.youtube.com/@{handle}/videos"
+            
+            print(f"   📺 Accessing: {channel_url}")
             
             ydl_opts = {
                 'quiet': True,
-                'extract_flat': True,
+                'extract_flat': 'in_playlist',
                 'no_warnings': True,
                 'playlistend': max_results,
+                'extractor_args': {'youtube': {'player_client': ['web']}},
             }
             
             videos = []
@@ -163,13 +172,20 @@ class YouTubeSearcher:
                             entries = result.get('entries', [])
                         
                         for entry in entries:
-                            if entry and entry.get('_type') != 'playlist':
+                            if entry:
+                                # Skip nested playlists (like "Videos", "Shorts" tabs)
+                                if entry.get('_type') == 'playlist':
+                                    continue
                                 videos.append(self._parse_entry(entry))
                                 
                 except Exception as e:
-                    print(f"⚠️ Direct channel access failed, trying search: {e}")
-                    # Fallback to search
-                    return self.search_channel(channel_identifier, '', max_results, sort_by)
+                    print(f"⚠️ Direct channel access failed: {e}")
+            
+            # If no videos found, try search fallback
+            if not videos:
+                print(f"   🔄 Trying search fallback for: {channel_identifier}")
+                # Use search with channel name to find videos
+                return self.search(f"{channel_identifier}", max_results * 2, sort_by)
             
             # Sort results
             return self._sort_videos(videos, sort_by)
