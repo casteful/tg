@@ -3,9 +3,9 @@
     "parse_mode": "md",
     "hourly_messages": [
         {
-            "comment": "Late night hours (00:00-05:59)",
+            "comment": "",
             "hours": [0, 4, 8, 12, 16, 20],
-            "prefix": "🌙 *Late Night Vibes*",
+            "prefix": "",
             "youtube_search": {
                 "query": "ue5 tutorial",
                 "random": true,
@@ -13,9 +13,9 @@
             }
         },
         {
-            "comment": "Morning hours (06:00-11:59)",
+            "comment": "",
             "hours": [1, 5, 9, 13, 17, 21],
-            "prefix": "☀️ *Good Morning!*",
+            "prefix": "",
             "youtube_search": {
                 "query": "unity tutorial",
                 "random": true,
@@ -23,9 +23,9 @@
             }
         },
         {
-            "comment": "Afternoon hours (12:00-17:59)",
+            "comment": "",
             "hours": [2, 6, 10, 14, 18, 22],
-            "prefix": "🌤️ *Afternoon Boost*",
+            "prefix": "",
             "youtube_search": {
                 "query": "ai tutorial",
                 "random": true,
@@ -33,9 +33,9 @@
             }
         },
         {
-            "comment": "Evening hours (18:00-23:59)",
+            "comment": "",
             "hours": [3, 7, 11, 15, 19, 23],
-            "prefix": "🌆 *Evening Chill*",
+            "prefix": "",
             "youtube_search": {
                 "query": "new music video",
                 "random": true,
