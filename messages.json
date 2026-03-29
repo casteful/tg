@@ -1,0 +1,22 @@
+{
+    "default_target": "me",
+    "parse_mode": "md",
+    "messages": [
+        {
+            "time": "00:00",
+            "content": "🌅 *Good Morning!*\n\nThis is your scheduled reminder for midnight.\n\nHave a great day ahead!"
+        },
+        {
+            "time": "06:00",
+            "content": "☀️ *Morning Reminder!*\n\nTime to start your day!\n\nRemember to check your tasks for today."
+        },
+        {
+            "time": "12:00",
+            "content": "🌤️ *Afternoon Check-in!*\n\nHalfway through the day.\n\nHow are your tasks going?"
+        },
+        {
+            "time": "18:00",
+            "content": "🌙 *Evening Update!*\n\nTime to wrap up for the day.\n\nDon't forget to review your accomplishments!"
+        }
+    ]
+}

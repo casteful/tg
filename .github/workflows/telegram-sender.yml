@@ -1,0 +1,152 @@
+name: Telegram Scheduled Sender
+
+on:
+  # Schedule: 4 times a day (every 6 hours)
+  # Times are in UTC: 00:00, 06:00, 12:00, 18:00
+  schedule:
+    - cron: '0 */6 * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Custom message to send (optional)'
+        required: false
+        default: ''
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  send-telegram-message:
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Checkout repository
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+      
+      # Step 2: Setup Python
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      # Step 3: Install dependencies
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      # Step 4: Download session artifact from previous run
+      - name: 📂 Download session artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: telegram-session
+          path: ./session
+      
+      # Step 5: Restore session file if exists
+      - name: 🔄 Restore session
+        run: |
+          if [ -f "./session/telegram_session.session" ]; then
+            cp ./session/telegram_session.session ./telegram_session.session
+            echo "✅ Session restored from artifact"
+          else
+            echo "⚠️ No previous session found, will use session string"
+          fi
+      
+      # Step 6: Create messages.json if custom message provided
+      - name: ✏️ Create custom message
+        if: ${{ github.event.inputs.message != '' }}
+        run: |
+          cat > messages.json << EOF
+          {
+            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
+            "parse_mode": "md",
+            "messages": [
+              {
+                "time": "now",
+                "content": "${{ github.event.inputs.message }}"
+              }
+            ]
+          }
+          EOF
+      
+      # Step 7: Run the Telegram sender
+      - name: 🚀 Send Telegram message
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_PHONE: ${{ secrets.TELEGRAM_PHONE }}
+          TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
+          TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
+          MESSAGE_FILE: 'messages.json'
+        run: |
+          python telegram_sender.py
+      
+      # Step 8: Save session artifact for next run
+      - name: 💾 Save session artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: telegram-session
+          path: ./telegram_session.session
+          retention-days: 90
+          overwrite: true
+      
+      # Step 9: Report status
+      - name: 📊 Report status
+        if: always()
+        run: |
+          echo "======================================"
+          echo "Telegram Sender Job Completed"
+          echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "======================================"
+
+  # Alternative approach using session string (simpler, recommended)
+  send-telegram-simple:
+    runs-on: ubuntu-latest
+    if: ${{ secrets.TELEGRAM_SESSION_STRING != '' }}
+    
+    steps:
+      - name: 📥 Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+      
+      - name: 📦 Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: ✏️ Create custom message
+        if: ${{ github.event.inputs.message != '' }}
+        run: |
+          cat > messages.json << EOF
+          {
+            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
+            "parse_mode": "md",
+            "messages": [
+              {
+                "time": "now",
+                "content": "${{ github.event.inputs.message }}"
+              }
+            ]
+          }
+          EOF
+      
+      - name: 🚀 Send Telegram message (Session String)
+        env:
+          TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
+          TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
+          TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
+          TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
+          MESSAGE_FILE: 'messages.json'
+        run: |
+          python telegram_sender.py
