@@ -1,18 +1,17 @@
 # Telegram YouTube Sender - GitHub Actions
 
-Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. This project combines Telethon (MTProto API) with yt-dlp to deliver customized video recommendations automatically.
+Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. Features channel selection, sorting options, and customizable templates.
 
 ## ✨ Features
 
 - 🤖 **Personal Account**: Messages appear from YOUR account, not a bot
 - 🔍 **YouTube Integration**: Auto-search and share YouTube videos using yt-dlp
+- 📺 **Channel Selection**: Get latest videos from specific channels
+- 📊 **Sorting Options**: Sort by latest, popular, or random
 - ⏰ **Hourly Sending**: Runs every hour via GitHub Actions cron
-- 🎲 **Random Videos**: Gets random videos from search results for variety
-- 📅 **Time-based Queries**: Different search queries for different times of day
 - 🔐 **Secure**: All credentials stored as GitHub Secrets
 - 🎯 **Flexible Targets**: Send to users, groups, or channels
 - 📝 **Custom Templates**: Format messages exactly how you want
-- 🔄 **Manual Trigger**: Test via workflow_dispatch with custom queries
 
 ## 📋 Prerequisites
 
@@ -32,36 +31,146 @@ Send **hourly messages with YouTube links** from your personal Telegram account 
 
 ### Step 2: Run Initial Setup
 
-Run this locally to generate your session string:
-
 ```bash
-# Install dependencies
 pip install telethon yt-dlp
 
-# Set environment variables
 export TELEGRAM_API_ID="your_api_id"
 export TELEGRAM_API_HASH="your_api_hash"
 
-# Run setup
 python telegram_sender.py --setup
 ```
-
-The script will output a **session string** - copy it!
 
 ### Step 3: Configure GitHub Secrets
 
 In your GitHub repository: **Settings → Secrets and variables → Actions**
 
-| Secret Name | Description | Example |
-|-------------|-------------|---------|
-| `TELEGRAM_API_ID` | Your API ID | `12345` |
-| `TELEGRAM_API_HASH` | Your API Hash | `a1b2c3d4...` |
-| `TELEGRAM_SESSION_STRING` | Session string from setup | `1AZWarz...` |
-| `TELEGRAM_TARGET_ENTITY` | Where to send | `me` or `@username` |
+| Secret Name | Example |
+|-------------|---------|
+| `TELEGRAM_API_ID` | `12345` |
+| `TELEGRAM_API_HASH` | `a1b2c3d4...` |
+| `TELEGRAM_SESSION_STRING` | `1AZWarz...` |
+| `TELEGRAM_TARGET_ENTITY` | `me` or `@username` |
 
 ### Step 4: Customize Messages
 
-Edit `messages.json` to configure your hourly YouTube searches:
+Edit `messages.json` and push to GitHub!
+
+---
+
+## 🎬 YouTube Configuration
+
+### Basic Options
+
+| Option | Description | Values |
+|--------|-------------|--------|
+| `query` | Search query | Any YouTube search term |
+| `channel` | Channel name/handle | `"Unreal Engine"`, `"@MrBeast"`, channel URL |
+| `sort_by` | Sorting method | `"latest"`, `"popular"`, `"random"` |
+| `max_results` | Number of results | `1` to `50` |
+| `template` | Message format | See template placeholders |
+
+### Sort Options
+
+| Value | Description | Best For |
+|-------|-------------|----------|
+| `latest` | Newest videos first | Breaking news, new uploads |
+| `popular` | Most views first | Trending content, best tutorials |
+| `random` | Random selection | Discovery, variety |
+
+### Template Placeholders
+
+| Placeholder | Description | Example |
+|-------------|-------------|---------|
+| `{title}` | Video title | "UE5 Beginner Tutorial" |
+| `{link}` | YouTube URL | "https://youtube.com/watch?v=..." |
+| `{channel}` | Channel name | "Unreal Engine" |
+| `{channel_url}` | Channel URL | "https://youtube.com/@UnrealEngine" |
+| `{duration}` | Video length | "15:30" |
+| `{views}` | View count | "1.5M" |
+
+---
+
+## 📝 Configuration Examples
+
+### 1. Latest Video from a Channel
+
+Get the newest video from a specific channel:
+
+```json
+{
+    "youtube_search": {
+        "channel": "Unreal Engine",
+        "sort_by": "latest",
+        "max_results": 1,
+        "template": "🎬 *Latest UE5*\n\n{title}\n\n🔗 {link}"
+    }
+}
+```
+
+### 2. Most Popular Videos
+
+Get the most popular video for a topic:
+
+```json
+{
+    "youtube_search": {
+        "query": "python tutorial 2024",
+        "sort_by": "popular",
+        "max_results": 10,
+        "template": "📚 *Top Python*\n\n🎬 {title}\n📺 {channel}\n👁️ {views}\n\n🔗 {link}"
+    }
+}
+```
+
+### 3. Search Within a Channel
+
+Search for specific content within a channel:
+
+```json
+{
+    "youtube_search": {
+        "channel": "Fireship",
+        "query": "javascript",
+        "sort_by": "latest",
+        "max_results": 5,
+        "template": "⚡ *Fireship JS*\n\n🎬 {title}\n\n🔗 {link}"
+    }
+}
+```
+
+### 4. Random Discovery
+
+Discover random videos for a topic:
+
+```json
+{
+    "youtube_search": {
+        "query": "indie game devlog",
+        "sort_by": "random",
+        "max_results": 20,
+        "template": "🎮 *Game Dev*\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+    }
+}
+```
+
+### 5. Channel by Handle (@username)
+
+Use the @handle format:
+
+```json
+{
+    "youtube_search": {
+        "channel": "@LinusTechTips",
+        "sort_by": "latest",
+        "max_results": 5,
+        "template": "💻 *Tech News*\n\n🎬 {title}\n\n🔗 {link}"
+    }
+}
+```
+
+### 6. Full Hourly Configuration
+
+Complete example with time-based rules:
 
 ```json
 {
@@ -70,107 +179,53 @@ Edit `messages.json` to configure your hourly YouTube searches:
     "hourly_messages": [
         {
             "hours": [0, 1, 2, 3, 4, 5],
-            "prefix": "🌙 *Late Night Vibes*",
+            "prefix": "🌙 *Night Content*",
             "youtube_search": {
-                "query": "lofi hip hop radio night",
-                "random": true,
-                "template": "🎵 *{title}*\n\n📺 {channel}\n🔗 {link}"
+                "channel": "Lofi Girl",
+                "sort_by": "latest",
+                "template": "🎵 {title}\n\n🔗 {link}"
             }
         },
         {
             "hours": [6, 7, 8, 9, 10, 11],
-            "prefix": "☀️ *Good Morning!*",
+            "prefix": "☀️ *Morning*",
             "youtube_search": {
-                "query": "morning motivation music",
-                "random": true
+                "query": "morning motivation",
+                "sort_by": "popular",
+                "template": "🎯 {title}\n📺 {channel}\n\n🔗 {link}"
+            }
+        },
+        {
+            "hours": [12, 13, 14, 15, 16, 17],
+            "prefix": "📚 *Learning*",
+            "youtube_search": {
+                "channel": "Unreal Engine",
+                "query": "tutorial",
+                "sort_by": "latest",
+                "template": "🎮 {title}\n⏱️ {duration}\n\n🔗 {link}"
+            }
+        },
+        {
+            "hours": [18, 19, 20, 21, 22, 23],
+            "prefix": "🌆 *Evening*",
+            "youtube_search": {
+                "query": "relaxing music",
+                "sort_by": "random",
+                "template": "🎶 {title}\n📺 {channel}\n\n🔗 {link}"
             }
         }
     ]
 }
 ```
 
-### Step 5: Push to GitHub
-
-1. Push the code to your repository
-2. Go to **Actions** tab
-3. Enable GitHub Actions if prompted
-4. Messages will be sent every hour automatically!
-
-## 🎬 YouTube Search Configuration
-
-### Message Template Placeholders
-
-| Placeholder | Description | Example |
-|-------------|-------------|---------|
-| `{title}` | Video title | "Lofi Hip Hop Radio" |
-| `{link}` | YouTube URL | "https://youtube.com/watch?v=..." |
-| `{channel}` | Channel name | "Lofi Girl" |
-| `{duration}` | Video length | "3:45:22" |
-| `{views}` | View count | "10M views" |
-
-### Example Configurations
-
-**Simple music recommendation:**
-```json
-{
-    "hours": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23],
-    "youtube_search": {
-        "query": "lofi beats",
-        "random": true,
-        "template": "🎵 {title}\n\n🔗 {link}"
-    }
-}
-```
-
-**UE5 Tutorials:**
-```json
-{
-    "youtube_search": {
-        "query": "ue5 tutorial beginner",
-        "random": true,
-        "max_results": 20,
-        "template": "🎮 **UE5 Tutorial**\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
-    }
-}
-```
-
-**Time-based categories:**
-```json
-{
-    "hourly_messages": [
-        {
-            "hours": [6, 7, 8],
-            "youtube_search": { "query": "morning workout music" }
-        },
-        {
-            "hours": [9, 10, 11, 12, 13, 14, 15, 16, 17],
-            "youtube_search": { "query": "focus music study" }
-        },
-        {
-            "hours": [18, 19, 20, 21, 22, 23, 0, 1, 2, 3, 4, 5],
-            "youtube_search": { "query": "relaxing evening music" }
-        }
-    ]
-}
-```
-
-**Learning content:**
-```json
-{
-    "youtube_search": {
-        "query": "python programming tutorial",
-        "random": true,
-        "template": "📚 *Daily Learning*\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
-    }
-}
-```
+---
 
 ## ⏰ Schedule Configuration
 
 **Default: Every hour**
 ```yaml
 schedule:
-  - cron: '0 * * * *'  # Every hour at minute 0
+  - cron: '0 * * * *'
 ```
 
 **Custom schedules:**
@@ -181,105 +236,72 @@ schedule:
 # Every 30 minutes
 - cron: '*/30 * * * *'
 
-# Every 6 hours
-- cron: '0 */6 * * *'
+# Specific times
+- cron: '0 9,12,18,21 * * *'
 ```
+
+---
 
 ## 🧪 Testing
 
-### Test YouTube Search Locally
+### Test YouTube Search
 ```bash
 python telegram_sender.py --test-youtube
 ```
 
-### Test Full Message Send
+### Test Full Send
 ```bash
 python test_send.py
 ```
 
-### Manual Trigger on GitHub
-1. Go to **Actions** tab
-2. Select the workflow
-3. Click "Run workflow"
-4. Optionally enter a custom YouTube query
-5. Click "Run workflow"
+### Manual GitHub Trigger
+1. Actions → Select workflow → Run workflow
+2. Enter custom YouTube query
+3. Run
 
-## ⚠️ Node.js Deprecation Fix
+---
 
-This project includes the fix for the Node.js 20 deprecation warning:
+## ⚠️ Node.js Fix
+
+The workflow includes:
 
 ```yaml
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 ```
 
-This forces GitHub Actions to use Node.js 24, avoiding the deprecation warning.
+This fixes the Node.js 20 deprecation warning.
 
-## 📦 Dependencies
-
-This project uses **yt-dlp** for YouTube searches, which is:
-- ✅ Actively maintained
-- ✅ No API key required
-- ✅ Works reliably without rate limiting issues
-- ✅ Provides video metadata (title, duration, views, etc.)
-
-## ⚠️ Important Notes
-
-### Telegram Rate Limits
-
-For hourly messages (24 per day), you're well within Telegram's limits:
-- ~30 messages/second to different chats
-- ~5 messages/second to same chat
-
-### Telegram ToS
-
-Use responsibly for:
-- ✅ Personal reminders
-- ✅ Self-notifications
-- ✅ Your own content
-- ❌ Spam or bulk messaging
+---
 
 ## 📁 Project Structure
 
 ```
 telegram-userbot-github-actions/
-├── .github/
-│   └── workflows/
-│       ├── telegram-sender.yml        # Main workflow
-│       └── telegram-sender-simple.yml # Simplified workflow
-├── telegram_sender.py                  # Main script with YouTube support
-├── setup.py                            # Session setup helper
-├── test_send.py                        # Local testing script
-├── messages.json                       # Message configuration
-├── requirements.txt                    # Dependencies
-└── README.md                           # Documentation
+├── .github/workflows/
+│   ├── telegram-sender.yml
+│   └── telegram-sender-simple.yml
+├── telegram_sender.py
+├── setup.py
+├── test_send.py
+├── messages.json
+├── requirements.txt
+└── README.md
 ```
+
+---
 
 ## 🐛 Troubleshooting
 
-### "yt-dlp not installed"
-```bash
-pip install yt-dlp
-```
+| Issue | Solution |
+|-------|----------|
+| "yt-dlp not installed" | `pip install yt-dlp` |
+| "No results found" | Check channel name/URL |
+| "Session not authorized" | Re-run `--setup` |
+| Workflow not running | Check Actions tab for errors |
 
-### "No YouTube results found"
-- Check your search query
-- Try simpler keywords
-- Check your internet connection
-
-### "Session not authorized"
-- Re-run `python telegram_sender.py --setup`
-- Update `TELEGRAM_SESSION_STRING` secret
-
-### Workflow not running
-- Check Actions tab for errors
-- Verify all 4 secrets are set
-- Ensure workflow file is in `.github/workflows/`
+---
 
 ## 📜 License
 
 MIT License - Use responsibly!
-
----
-
-**Made with ❤️ for personal automation**

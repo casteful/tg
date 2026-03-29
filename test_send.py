@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script to verify YouTube search and Telegram sending locally.
+Supports channel selection and sorting options.
 """
 
 import os
@@ -19,52 +20,122 @@ except ImportError as e:
 
 
 class YouTubeTester:
-    def __init__(self):
-        pass
+    """YouTube search tester with channel and sorting support."""
     
-    def search(self, query: str, max_results: int = 5):
-        """Search YouTube and display results."""
-        print(f"\n🔍 Searching YouTube for: '{query}'\n")
+    SORT_LATEST = 'latest'
+    SORT_POPULAR = 'popular'
+    SORT_RANDOM = 'random'
+    
+    def search(self, query: str, max_results: int = 10, sort_by: str = 'random'):
+        """Search YouTube."""
+        print(f"\n🔍 Searching: '{query}' (sort: {sort_by})\n")
         
-        try:
-            ydl_opts = {
-                'quiet': True,
-                'extract_flat': True,
-                'default_search': 'ytsearch',
-                'max_results': max_results,
-                'no_warnings': True,
-            }
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'default_search': 'ytsearch',
+            'max_results': max_results,
+            'no_warnings': True,
+        }
+        
+        videos = []
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            search_query = f"ytsearch{max_results}:{query}"
+            result = ydl.extract_info(search_query, download=False)
             
-            videos = []
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                search_query = f"ytsearch{max_results}:{query}"
-                result = ydl.extract_info(search_query, download=False)
+            if result and 'entries' in result:
+                for entry in result['entries']:
+                    if entry:
+                        videos.append({
+                            'title': entry.get('title', 'Unknown'),
+                            'channel': entry.get('channel') or entry.get('uploader', 'Unknown'),
+                            'duration': entry.get('duration', 'N/A'),
+                            'views': entry.get('view_count') or 0,
+                            'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
+                        })
+        
+        return self._sort_videos(videos, sort_by)
+    
+    def get_channel_videos(self, channel: str, max_results: int = 10, sort_by: str = 'latest'):
+        """Get videos from a channel."""
+        print(f"\n📺 Getting videos from channel: '{channel}' (sort: {sort_by})\n")
+        
+        # Determine channel URL
+        if 'youtube.com' in channel:
+            channel_url = channel
+        elif channel.startswith('@'):
+            channel_url = f"https://www.youtube.com/{channel}"
+        else:
+            channel_url = f"https://www.youtube.com/@{channel.replace(' ', '')}"
+        
+        ydl_opts = {
+            'quiet': True,
+            'extract_flat': True,
+            'no_warnings': True,
+            'playlistend': max_results,
+        }
+        
+        videos = []
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                result = ydl.extract_info(channel_url, download=False)
                 
                 if result and 'entries' in result:
-                    for i, entry in enumerate(result['entries'], 1):
-                        if entry:
-                            video = {
+                    for entry in result['entries']:
+                        if entry and entry.get('_type') != 'playlist':
+                            videos.append({
                                 'title': entry.get('title', 'Unknown'),
                                 'channel': entry.get('channel') or entry.get('uploader', 'Unknown'),
                                 'duration': entry.get('duration', 'N/A'),
+                                'views': entry.get('view_count') or 0,
                                 'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
-                                'views': entry.get('view_count', 'N/A')
-                            }
-                            videos.append(video)
-                            
-                            print(f"{i}. {video['title']}")
-                            print(f"   📺 Channel: {video['channel']}")
-                            print(f"   ⏱️ Duration: {self._format_duration(video['duration'])}")
-                            print(f"   👁️ Views: {self._format_views(video['views'])}")
-                            print(f"   🔗 {video['link']}")
-                            print()
-            
+                            })
+            except Exception as e:
+                print(f"⚠️ Direct access failed, trying search...")
+                return self.search(f"channel:{channel}", max_results, sort_by)
+        
+        return self._sort_videos(videos, sort_by)
+    
+    def search_in_channel(self, channel: str, query: str, max_results: int = 10, sort_by: str = 'latest'):
+        """Search within a channel."""
+        print(f"\n🔍 Searching '{query}' in channel: '{channel}' (sort: {sort_by})\n")
+        return self.search(f"{query} channel:{channel}", max_results, sort_by)
+    
+    def _sort_videos(self, videos: list, sort_by: str) -> list:
+        """Sort videos."""
+        if not videos:
             return videos
-            
-        except Exception as e:
-            print(f"❌ Search error: {e}")
-            return []
+        
+        if sort_by == self.SORT_LATEST:
+            # Already sorted by recency from yt-dlp
+            return videos
+        elif sort_by == self.SORT_POPULAR:
+            return sorted(videos, key=lambda v: -(v.get('views', 0) or 0))
+        elif sort_by == self.SORT_RANDOM:
+            shuffled = videos.copy()
+            random.shuffle(shuffled)
+            return shuffled
+        
+        return videos
+    
+    def display_videos(self, videos: list):
+        """Display video list."""
+        if not videos:
+            print("❌ No videos found!")
+            return
+        
+        print(f"✅ Found {len(videos)} videos:\n")
+        for i, video in enumerate(videos, 1):
+            views_str = self._format_views(video.get('views'))
+            print(f"{i}. {video['title']}")
+            print(f"   📺 {video['channel']}")
+            print(f"   ⏱️ {self._format_duration(video['duration'])}")
+            if views_str and views_str != 'N/A':
+                print(f"   👁️ {views_str}")
+            print(f"   🔗 {video['link']}")
+            print()
     
     def _format_duration(self, seconds):
         if not seconds:
@@ -76,13 +147,12 @@ class YouTubeTester:
             secs = seconds % 60
             if hours > 0:
                 return f"{hours}:{minutes:02d}:{secs:02d}"
-            else:
-                return f"{minutes}:{secs:02d}"
+            return f"{minutes}:{secs:02d}"
         except:
             return str(seconds)
     
     def _format_views(self, views):
-        if not views or views == 'N/A':
+        if not views:
             return 'N/A'
         try:
             views = int(views)
@@ -90,8 +160,7 @@ class YouTubeTester:
                 return f"{views / 1_000_000:.1f}M"
             elif views >= 1_000:
                 return f"{views / 1_000:.1f}K"
-            else:
-                return str(views)
+            return str(views)
         except:
             return str(views)
 
@@ -105,18 +174,45 @@ async def test_telegram_send():
     session_string = os.environ.get('TELEGRAM_SESSION_STRING') or input("Session String: ")
     target = os.environ.get('TELEGRAM_TARGET_ENTITY') or input("Target (me/@username): ")
     
-    # Get YouTube query
-    query = input("YouTube search query (press Enter for 'ue5 tutorial'): ") or "ue5 tutorial"
+    # YouTube options
+    print("\n" + "="*50)
+    print("YouTube Search Options")
+    print("="*50)
+    print("1. General search")
+    print("2. Latest from channel")
+    print("3. Search within channel")
     
-    # Search YouTube
+    choice = input("\nSelect (1-3): ")
+    
     yt = YouTubeTester()
-    videos = yt.search(query, max_results=5)
+    videos = []
     
-    if not videos:
-        print("❌ No videos found!")
+    if choice == '1':
+        query = input("Search query: ") or "ue5 tutorial"
+        print("\nSort: (1) latest, (2) popular, (3) random")
+        sort_choice = input("Select (default=2): ") or "2"
+        sort_map = {'1': 'latest', '2': 'popular', '3': 'random'}
+        videos = yt.search(query, max_results=5, sort_by=sort_map.get(sort_choice, 'popular'))
+        
+    elif choice == '2':
+        channel = input("Channel name: ") or "Unreal Engine"
+        videos = yt.get_channel_videos(channel, max_results=5, sort_by='latest')
+        
+    elif choice == '3':
+        channel = input("Channel name: ") or "Unreal Engine"
+        query = input("Search query: ") or "tutorial"
+        videos = yt.search_in_channel(channel, query, max_results=5, sort_by='latest')
+    
+    else:
+        print("Invalid choice!")
         return
     
-    # Select video (first one or let user choose)
+    yt.display_videos(videos)
+    
+    if not videos:
+        return
+    
+    # Select video
     print("\nSelect a video (1-5) or press Enter for first:")
     choice = input("> ")
     
@@ -158,23 +254,43 @@ def main():
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║        Telegram + YouTube Integration Test Script            ║
-║                    (Using yt-dlp)                            ║
+║           (Channel Selection & Sorting Support)              ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
     print("Options:")
     print("1. Test YouTube search only")
     print("2. Test full Telegram send with YouTube")
-    print("3. Exit")
+    print("3. Quick test: Latest from channel")
+    print("4. Quick test: Popular videos")
+    print("5. Exit")
     
-    choice = input("\nSelect option (1-3): ")
+    choice = input("\nSelect option (1-5): ")
+    
+    yt = YouTubeTester()
     
     if choice == '1':
-        yt = YouTubeTester()
+        print("\n--- YouTube Search Test ---")
         query = input("Enter search query: ") or "ue5 tutorial"
-        yt.search(query)
+        print("\nSort: (1) latest, (2) popular, (3) random")
+        sort_choice = input("Select (default=3): ") or "3"
+        sort_map = {'1': 'latest', '2': 'popular', '3': 'random'}
+        videos = yt.search(query, max_results=5, sort_by=sort_map.get(sort_choice, 'random'))
+        yt.display_videos(videos)
+        
     elif choice == '2':
         asyncio.run(test_telegram_send())
+        
+    elif choice == '3':
+        channel = input("Channel name (default=Unreal Engine): ") or "Unreal Engine"
+        videos = yt.get_channel_videos(channel, max_results=5, sort_by='latest')
+        yt.display_videos(videos)
+        
+    elif choice == '4':
+        query = input("Search query (default=python tutorial): ") or "python tutorial"
+        videos = yt.search(query, max_results=5, sort_by='popular')
+        yt.display_videos(videos)
+        
     else:
         print("👋 Bye!")
 

@@ -4,43 +4,156 @@
     "hourly_messages": [
         {
             "comment": "",
-            "hours": [0, 4, 8, 12, 16, 20],
+            "hours": [0, 8, 16],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "IGN",
+                "sort_by": "latest",
+                "max_results": 1,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [1, 9, 17],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "Unreal Engine",
+                "sort_by": "latest",
+                "max_results": 1,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [2, 10, 18],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "Unity",
+                "sort_by": "latest",
+                "max_results": 1,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [3, 11, 19],
             "prefix": "",
             "youtube_search": {
                 "query": "ue5 tutorial",
-                "random": true,
+                "sort_by": "latest",
+                "max_results": 1,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [1, 5, 9, 13, 17, 21],
+            "hours": [4, 12, 20],
             "prefix": "",
             "youtube_search": {
-                "query": "unity tutorial",
-                "random": true,
+                "channel": "ENFANT TERRIBLE",
+                "sort_by": "latest",
+                "max_results": 1,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [2, 6, 10, 14, 18, 22],
+            "hours": [5, 13, 21],
             "prefix": "",
             "youtube_search": {
-                "query": "ai tutorial",
-                "random": true,
+                "channel": "GameTrailers",
+                "sort_by": "latest",
+                "max_results": 1,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [3, 7, 11, 15, 19, 23],
+            "hours": [6, 14, 22],
             "prefix": "",
             "youtube_search": {
-                "query": "new music video",
-                "random": true,
+                "channel": "IGN Movie Trailers",
+                "sort_by": "latest",
+                "max_results": 1,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [7, 15, 23],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "ONE Media",
+                "sort_by": "latest",
+                "max_results": 1,
                 "template": "{link}"
             }
         }
-    ]
+    ],
+    "examples": {
+        "comment": "Below are example configurations you can copy",
+        
+        "example_1_latest_from_channel": {
+            "description": "Get the latest video from a specific channel",
+            "youtube_search": {
+                "channel": "MrBeast",
+                "sort_by": "latest",
+                "max_results": 1,
+                "template": "🎬 *Latest from MrBeast*\n\n{title}\n\n🔗 {link}"
+            }
+        },
+        
+        "example_2_popular_from_query": {
+            "description": "Get most popular video for a search term",
+            "youtube_search": {
+                "query": "python tutorial 2024",
+                "sort_by": "popular",
+                "max_results": 10,
+                "template": "📚 *Top Python Tutorial*\n\n🎬 {title}\n📺 {channel}\n👁️ {views}\n\n🔗 {link}"
+            }
+        },
+        
+        "example_3_search_in_channel": {
+            "description": "Search for specific content within a channel",
+            "youtube_search": {
+                "channel": "Fireship",
+                "query": "javascript",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "⚡ *Fireship JS*\n\n🎬 {title}\n\n🔗 {link}"
+            }
+        },
+        
+        "example_4_random_discovery": {
+            "description": "Random video discovery for a topic",
+            "youtube_search": {
+                "query": "indie game devlog",
+                "sort_by": "random",
+                "max_results": 20,
+                "template": "🎮 *Game Dev Discovery*\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+            }
+        },
+        
+        "example_5_ue5_channel": {
+            "description": "UE5 tutorials from official channel",
+            "youtube_search": {
+                "channel": "Unreal Engine",
+                "query": "beginner tutorial",
+                "sort_by": "latest",
+                "max_results": 10,
+                "template": "🎯 *UE5 Beginner*\n\n🎬 {title}\n⏱️ {duration}\n\n🔗 {link}"
+            }
+        },
+        
+        "example_6_channel_by_handle": {
+            "description": "Using channel handle (@username)",
+            "youtube_search": {
+                "channel": "@LinusTechTips",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "💻 *Tech Tips*\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+            }
+        }
+    }
 }

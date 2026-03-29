@@ -2,7 +2,7 @@
 """
 Telegram Userbot Sender with YouTube Search
 Sends messages from your personal Telegram account using Telethon (MTProto API).
-Supports YouTube video search and link inclusion using yt-dlp.
+Supports YouTube video search, channel selection, and sorting options.
 """
 
 import os
@@ -17,7 +17,7 @@ from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import SessionPasswordNeededError, PhoneCodeInvalidError
 
-# YouTube search using yt-dlp (more reliable)
+# YouTube search using yt-dlp
 try:
     import yt_dlp
     YT_DLP_AVAILABLE = True
@@ -39,22 +39,28 @@ SESSION_FILE = 'telegram_session.session'
 
 
 class YouTubeSearcher:
-    """Search YouTube for videos using yt-dlp."""
+    """Search YouTube for videos using yt-dlp with channel and sorting support."""
+    
+    # Sort options
+    SORT_LATEST = 'latest'
+    SORT_POPULAR = 'popular'
+    SORT_RANDOM = 'random'
     
     def __init__(self):
         if not YT_DLP_AVAILABLE:
             raise ImportError("yt-dlp is not installed. Run: pip install yt-dlp")
     
-    def search(self, query: str, max_results: int = 10) -> list:
+    def search(self, query: str, max_results: int = 15, sort_by: str = 'random') -> list:
         """
         Search YouTube for videos.
         
         Args:
             query: Search query
             max_results: Maximum number of results to return
+            sort_by: Sorting method - 'latest', 'popular', or 'random'
             
         Returns:
-            List of video dictionaries with title, link, duration, views, etc.
+            List of video dictionaries sorted by the specified method
         """
         try:
             ydl_opts = {
@@ -75,21 +81,220 @@ class YouTubeSearcher:
                 if result and 'entries' in result:
                     for entry in result['entries']:
                         if entry:
-                            videos.append({
-                                'title': entry.get('title', 'Unknown'),
-                                'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
-                                'duration': self._format_duration(entry.get('duration')),
-                                'views': entry.get('view_count', 'N/A'),
-                                'channel': entry.get('channel') or entry.get('uploader', 'Unknown'),
-                                'id': entry.get('id', ''),
-                                'description': entry.get('description', '')[:200] if entry.get('description') else ''
-                            })
+                            videos.append(self._parse_entry(entry))
             
-            return videos
+            # Sort results
+            return self._sort_videos(videos, sort_by)
             
         except Exception as e:
             print(f"❌ YouTube search error: {e}")
             return []
+    
+    def search_channel(self, channel_name: str, query: str = '', max_results: int = 15, sort_by: str = 'latest') -> list:
+        """
+        Search within a specific YouTube channel.
+        
+        Args:
+            channel_name: Channel name or handle (e.g., "Unreal Engine" or "@UnrealEngine")
+            query: Optional search query to filter within channel
+            max_results: Maximum number of results
+            sort_by: Sorting method
+            
+        Returns:
+            List of video dictionaries from the channel
+        """
+        try:
+            # Build search query for channel
+            if query:
+                search_query = f"{query} channel:{channel_name}"
+            else:
+                search_query = f"channel:{channel_name}"
+            
+            return self.search(search_query, max_results, sort_by)
+            
+        except Exception as e:
+            print(f"❌ Channel search error: {e}")
+            return []
+    
+    def get_channel_videos(self, channel_identifier: str, max_results: int = 15, sort_by: str = 'latest') -> list:
+        """
+        Get videos directly from a YouTube channel.
+        
+        Args:
+            channel_identifier: Channel URL, handle, or ID
+            max_results: Maximum number of results
+            sort_by: Sorting method - 'latest' or 'popular'
+            
+        Returns:
+            List of video dictionaries from the channel
+        """
+        try:
+            # Determine if it's a URL or a channel name
+            if 'youtube.com' in channel_identifier or 'youtu.be' in channel_identifier:
+                channel_url = channel_identifier
+            elif channel_identifier.startswith('@'):
+                channel_url = f"https://www.youtube.com/{channel_identifier}"
+            elif channel_identifier.startswith('UC') and len(channel_identifier) == 24:
+                # YouTube channel ID
+                channel_url = f"https://www.youtube.com/channel/{channel_identifier}"
+            else:
+                # Assume it's a channel handle or name
+                channel_url = f"https://www.youtube.com/@{channel_identifier.replace(' ', '')}"
+            
+            ydl_opts = {
+                'quiet': True,
+                'extract_flat': True,
+                'no_warnings': True,
+                'playlistend': max_results,
+            }
+            
+            videos = []
+            
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                try:
+                    result = ydl.extract_info(channel_url, download=False)
+                    
+                    if result:
+                        # Handle different result types
+                        entries = []
+                        if 'entries' in result:
+                            entries = result['entries']
+                        elif result.get('_type') == 'playlist':
+                            entries = result.get('entries', [])
+                        
+                        for entry in entries:
+                            if entry and entry.get('_type') != 'playlist':
+                                videos.append(self._parse_entry(entry))
+                                
+                except Exception as e:
+                    print(f"⚠️ Direct channel access failed, trying search: {e}")
+                    # Fallback to search
+                    return self.search_channel(channel_identifier, '', max_results, sort_by)
+            
+            # Sort results
+            return self._sort_videos(videos, sort_by)
+            
+        except Exception as e:
+            print(f"❌ Get channel videos error: {e}")
+            return []
+    
+    def _parse_entry(self, entry: dict) -> dict:
+        """Parse a yt-dlp entry into a standardized video dictionary."""
+        # Handle timestamp if available
+        upload_date = entry.get('upload_date') or entry.get('timestamp')
+        
+        return {
+            'title': entry.get('title', 'Unknown'),
+            'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
+            'duration': self._format_duration(entry.get('duration')),
+            'duration_seconds': entry.get('duration', 0),
+            'views': entry.get('view_count') or entry.get('view_count_approx', 0),
+            'channel': entry.get('channel') or entry.get('uploader', 'Unknown'),
+            'channel_url': entry.get('channel_url') or entry.get('uploader_url', ''),
+            'id': entry.get('id', ''),
+            'upload_date': upload_date,
+            'description': (entry.get('description', '') or '')[:200]
+        }
+    
+    def _sort_videos(self, videos: list, sort_by: str) -> list:
+        """Sort videos by the specified method."""
+        if not videos:
+            return videos
+        
+        if sort_by == self.SORT_LATEST:
+            # Sort by upload date (newest first)
+            def sort_key(v):
+                date = v.get('upload_date')
+                if date:
+                    # Convert to comparable format
+                    if isinstance(date, (int, float)):
+                        return -date  # Negative for descending
+                    return str(date)
+                return ''
+            return sorted(videos, key=sort_key, reverse=True)
+        
+        elif sort_by == self.SORT_POPULAR:
+            # Sort by views (highest first)
+            def sort_key(v):
+                views = v.get('views')
+                if views and isinstance(views, (int, float)):
+                    return -views  # Negative for descending
+                return 0
+            return sorted(videos, key=sort_key)
+        
+        elif sort_by == self.SORT_RANDOM:
+            # Shuffle for random selection
+            shuffled = videos.copy()
+            random.shuffle(shuffled)
+            return shuffled
+        
+        return videos
+    
+    def get_video(self, config: dict) -> dict:
+        """
+        Get a single video based on configuration.
+        
+        Args:
+            config: YouTube search configuration dict with:
+                - query: Search query (optional if channel is specified)
+                - channel: Channel name/URL (optional)
+                - sort_by: 'latest', 'popular', or 'random'
+                - max_results: Number of results to fetch
+                - random: Legacy option (equivalent to sort_by='random')
+                
+        Returns:
+            Single video dictionary or None
+        """
+        query = config.get('query', '')
+        channel = config.get('channel', '')
+        
+        # Determine sort method
+        sort_by = config.get('sort_by', 'random')
+        # Support legacy 'random' option
+        if config.get('random') and sort_by == 'random':
+            sort_by = self.SORT_RANDOM
+        
+        max_results = config.get('max_results', 15)
+        
+        videos = []
+        
+        if channel:
+            # Channel-specific search
+            if query:
+                # Search within channel
+                print(f"🔍 Searching in channel '{channel}' for: {query}")
+                videos = self.search_channel(channel, query, max_results, sort_by)
+            else:
+                # Get all recent videos from channel
+                print(f"🔍 Getting videos from channel: {channel}")
+                videos = self.get_channel_videos(channel, max_results, sort_by)
+        elif query:
+            # General search
+            print(f"🔍 Searching YouTube for: {query}")
+            videos = self.search(query, max_results, sort_by)
+        else:
+            print("⚠️ No query or channel specified!")
+            return None
+        
+        # Return first video after sorting
+        if videos:
+            return videos[0]
+        return None
+    
+    def get_latest_video(self, channel: str) -> dict:
+        """Quick method to get the latest video from a channel."""
+        videos = self.get_channel_videos(channel, max_results=1, sort_by=self.SORT_LATEST)
+        return videos[0] if videos else None
+    
+    def get_popular_video(self, query: str, max_results: int = 15) -> dict:
+        """Quick method to get the most popular video for a query."""
+        videos = self.search(query, max_results, sort_by=self.SORT_POPULAR)
+        return videos[0] if videos else None
+    
+    def get_random_video(self, query: str, max_results: int = 15) -> dict:
+        """Quick method to get a random video for a query."""
+        videos = self.search(query, max_results, sort_by=self.SORT_RANDOM)
+        return videos[0] if videos else None
     
     def _format_duration(self, seconds):
         """Format duration in seconds to HH:MM:SS or MM:SS."""
@@ -109,20 +314,6 @@ class YouTubeSearcher:
         except:
             return str(seconds)
     
-    def get_random_video(self, query: str, max_results: int = 15) -> dict:
-        """Get a single random video from search results."""
-        videos = self.search(query, max_results=max_results)
-        if videos:
-            return random.choice(videos)
-        return None
-    
-    def get_top_video(self, query: str) -> dict:
-        """Get the top video from search results."""
-        videos = self.search(query, max_results=1)
-        if videos:
-            return videos[0]
-        return None
-    
     def format_video_message(self, video: dict, template: str = None) -> str:
         """
         Format a video as a message.
@@ -141,7 +332,8 @@ class YouTubeSearcher:
                 link=video.get('link', ''),
                 duration=video.get('duration', 'N/A'),
                 views=self._format_views(video.get('views')),
-                channel=video.get('channel', 'Unknown')
+                channel=video.get('channel', 'Unknown'),
+                channel_url=video.get('channel_url', '')
             )
         else:
             # Default format
@@ -157,7 +349,7 @@ class YouTubeSearcher:
     
     def _format_views(self, views):
         """Format view count."""
-        if not views or views == 'N/A':
+        if not views:
             return 'N/A'
         
         try:
@@ -211,18 +403,15 @@ class TelegramSender:
         """Resolve entity string to a Telegram entity."""
         entity_str = entity_str.strip()
         
-        # Special case for 'me'
         if entity_str.lower() == 'me':
             return 'me'
         
-        # Try to parse as integer (user/chat ID)
         try:
             entity_id = int(entity_str)
             return await self.client.get_entity(entity_id)
         except ValueError:
             pass
         
-        # Try as username (with or without @)
         if entity_str.startswith('@'):
             entity_str = entity_str[1:]
         
@@ -239,7 +428,7 @@ class TelegramSender:
                 entity,
                 message,
                 parse_mode=parse_mode,
-                link_preview=True  # Enable link preview for YouTube
+                link_preview=True
             )
             print(f"✅ Message sent successfully!")
             print(f"   Message ID: {result.id}")
@@ -264,14 +453,12 @@ class TelegramSender:
         entity = await self.resolve_entity(target)
         print(f"🎯 Target: {entity}")
         
-        # Get message configuration for current time
         message_config = self.get_message_config_for_current_time(messages_config)
         
         if not message_config:
             print("⚠️ No message to send at this time.")
             return
         
-        # Build the message
         message = await self.build_message(message_config)
         
         if message:
@@ -279,47 +466,35 @@ class TelegramSender:
             await self.send_message(entity, message, parse_mode=parse_mode)
     
     async def build_message(self, config: dict) -> str:
-        """
-        Build a message from configuration.
-        Supports YouTube search integration.
-        """
+        """Build a message from configuration with YouTube support."""
         message_parts = []
         
-        # Add prefix text
         if config.get('prefix'):
             message_parts.append(config['prefix'])
         
-        # Handle YouTube search
         youtube_config = config.get('youtube_search')
         if youtube_config and self.youtube:
-            query = youtube_config.get('query', '')
-            template = youtube_config.get('template')
-            random_video = youtube_config.get('random', True)
-            max_results = youtube_config.get('max_results', 15)
-            
-            print(f"🔍 Searching YouTube for: {query}")
-            
-            if random_video:
-                video = self.youtube.get_random_video(query, max_results=max_results)
-            else:
-                video = self.youtube.get_top_video(query)
+            video = self.youtube.get_video(youtube_config)
             
             if video:
+                template = youtube_config.get('template')
                 yt_message = self.youtube.format_video_message(video, template)
                 message_parts.append(yt_message)
                 print(f"📹 Found: {video.get('title', 'Unknown')}")
+                print(f"   Channel: {video.get('channel', 'Unknown')}")
+                print(f"   Views: {self.youtube._format_views(video.get('views'))}")
             else:
-                message_parts.append(f"⚠️ No YouTube results found for: {query}")
+                query = youtube_config.get('query', '')
+                channel = youtube_config.get('channel', '')
+                search_desc = f"'{query}'" if query else f"channel '{channel}'"
+                message_parts.append(f"⚠️ No YouTube results found for {search_desc}")
         
-        # Add custom link if provided
         elif config.get('youtube_link'):
             message_parts.append(f"🔗 {config['youtube_link']}")
         
-        # Add suffix text
         if config.get('suffix'):
             message_parts.append(config['suffix'])
         
-        # Add main content if no special processing
         if not message_parts and config.get('content'):
             message_parts.append(config['content'])
         
@@ -332,62 +507,62 @@ class TelegramSender:
                 with open(MESSAGE_FILE, 'r', encoding='utf-8') as f:
                     return json.load(f)
             else:
-                default_config = {
-                    "default_target": TARGET_ENTITY or "me",
-                    "parse_mode": "md",
-                    "hourly_messages": [
-                        {
-                            "hours": [0, 1, 2, 3, 4, 5],
-                            "youtube_search": {
-                                "query": "relaxing music",
-                                "random": True,
-                                "template": "🎵 **Night Time Relaxation**\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
-                            }
-                        },
-                        {
-                            "hours": [6, 7, 8, 9, 10, 11],
-                            "youtube_search": {
-                                "query": "morning motivation",
-                                "random": True,
-                                "template": "☀️ **Morning Motivation**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
-                            }
-                        },
-                        {
-                            "hours": [12, 13, 14, 15, 16, 17],
-                            "youtube_search": {
-                                "query": "productive music",
-                                "random": True,
-                                "template": "🎯 **Productivity Boost**\n\n🎬 {title}\n⏱️ {duration}\n\n🔗 {link}"
-                            }
-                        },
-                        {
-                            "hours": [18, 19, 20, 21, 22, 23],
-                            "youtube_search": {
-                                "query": "evening chill music",
-                                "random": True,
-                                "template": "🌙 **Evening Chill**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
-                            }
-                        }
-                    ]
-                }
-                print("⚠️ Message file not found. Using default configuration.")
-                return default_config
+                return self._get_default_config()
         except Exception as e:
             print(f"❌ Error loading messages: {e}")
             return None
+    
+    def _get_default_config(self):
+        """Get default configuration."""
+        return {
+            "default_target": TARGET_ENTITY or "me",
+            "parse_mode": "md",
+            "hourly_messages": [
+                {
+                    "hours": [0, 1, 2, 3, 4, 5],
+                    "youtube_search": {
+                        "query": "relaxing music night",
+                        "sort_by": "popular",
+                        "template": "🌙 **Night Vibes**\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
+                    }
+                },
+                {
+                    "hours": [6, 7, 8, 9, 10, 11],
+                    "youtube_search": {
+                        "query": "morning motivation",
+                        "sort_by": "popular",
+                        "template": "☀️ **Morning Motivation**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+                    }
+                },
+                {
+                    "hours": [12, 13, 14, 15, 16, 17],
+                    "youtube_search": {
+                        "query": "focus productivity music",
+                        "sort_by": "popular",
+                        "template": "🎯 **Productivity Boost**\n\n🎬 {title}\n\n🔗 {link}"
+                    }
+                },
+                {
+                    "hours": [18, 19, 20, 21, 22, 23],
+                    "youtube_search": {
+                        "query": "evening chill",
+                        "sort_by": "random",
+                        "template": "🌆 **Evening Chill**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+                    }
+                }
+            ]
+        }
     
     def get_message_config_for_current_time(self, config: dict) -> dict:
         """Get message configuration for the current hour."""
         current_hour = datetime.now().hour
         
-        # Check hourly messages first
         hourly_messages = config.get('hourly_messages', [])
         for msg_config in hourly_messages:
             hours = msg_config.get('hours', [])
             if current_hour in hours:
                 return msg_config
         
-        # Fallback to time-based messages
         messages = config.get('messages', [])
         for msg in messages:
             time_str = msg.get('time', '')
@@ -399,7 +574,6 @@ class TelegramSender:
                 except ValueError:
                     continue
         
-        # If nothing matched, use first hourly message or first regular message
         if hourly_messages:
             return hourly_messages[0]
         if messages:
@@ -462,25 +636,73 @@ async def test_youtube_search():
     
     searcher = YouTubeSearcher()
     
-    queries = ["python tutorial", "ue5 tutorial", "lofi beats"]
-    query = input("Enter search query (or press Enter for random): ") or random.choice(queries)
+    print("\n" + "="*60)
+    print("YouTube Search Test")
+    print("="*60)
+    print("\nTest options:")
+    print("1. Search by query")
+    print("2. Get latest video from channel")
+    print("3. Search within a channel")
+    print("4. Get popular videos")
+    print("5. Full config test")
     
-    print(f"\n🔍 Testing YouTube search with: {query}")
-    videos = searcher.search(query, max_results=5)
+    choice = input("\nSelect option (1-5): ")
     
+    if choice == '1':
+        query = input("Enter search query: ") or "ue5 tutorial"
+        print("\nSort by: (1) latest, (2) popular, (3) random")
+        sort_choice = input("Select (1-3, default=random): ") or "3"
+        sort_map = {'1': 'latest', '2': 'popular', '3': 'random'}
+        sort_by = sort_map.get(sort_choice, 'random')
+        
+        videos = searcher.search(query, max_results=5, sort_by=sort_by)
+        
+    elif choice == '2':
+        channel = input("Enter channel name (e.g., 'Unreal Engine' or '@UnrealEngine'): ") or "Unreal Engine"
+        videos = searcher.get_channel_videos(channel, max_results=5, sort_by='latest')
+        
+    elif choice == '3':
+        channel = input("Enter channel name: ") or "Unreal Engine"
+        query = input("Enter search query (optional): ")
+        videos = searcher.search_channel(channel, query, max_results=5, sort_by='latest')
+        
+    elif choice == '4':
+        query = input("Enter search query: ") or "python tutorial"
+        videos = searcher.search(query, max_results=5, sort_by='popular')
+        
+    elif choice == '5':
+        # Full config test
+        config = {
+            "channel": input("Channel name (leave empty for general search): ") or None,
+            "query": input("Search query: ") or "ue5 tutorial",
+            "sort_by": input("Sort by (latest/popular/random): ") or "latest",
+            "max_results": 10
+        }
+        
+        if not config["channel"]:
+            del config["channel"]
+        
+        video = searcher.get_video(config)
+        if video:
+            print(f"\n{'='*60}")
+            print(searcher.format_video_message(video))
+            print(f"{'='*60}")
+        return
+    
+    else:
+        print("Invalid choice!")
+        return
+    
+    # Display results
     if videos:
         print(f"\n✅ Found {len(videos)} videos:\n")
         for i, video in enumerate(videos, 1):
             print(f"{i}. {video['title']}")
             print(f"   📺 {video['channel']}")
             print(f"   ⏱️ {video['duration']}")
+            print(f"   👁️ {searcher._format_views(video['views'])}")
             print(f"   🔗 {video['link']}")
             print()
-        
-        # Test random video
-        print("\n--- Random Video Message Format ---\n")
-        random_video = searcher.get_random_video(query)
-        print(searcher.format_video_message(random_video))
     else:
         print("❌ No results found")
 
