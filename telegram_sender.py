@@ -25,6 +25,14 @@ except ImportError:
     YT_DLP_AVAILABLE = False
     print("⚠️ yt-dlp not installed. YouTube features disabled.")
 
+# Import history manager
+try:
+    from history_manager import VideoHistory
+    HISTORY_AVAILABLE = True
+except ImportError:
+    HISTORY_AVAILABLE = False
+    print("⚠️ history_manager not found. Duplicate prevention disabled.")
+
 
 # Configuration from environment variables
 API_ID = os.environ.get('TELEGRAM_API_ID')
@@ -36,6 +44,7 @@ SESSION_STRING = os.environ.get('TELEGRAM_SESSION_STRING')
 TARGET_ENTITY = os.environ.get('TELEGRAM_TARGET_ENTITY')
 MESSAGE_FILE = os.environ.get('MESSAGE_FILE', 'messages.json')
 SESSION_FILE = 'telegram_session.session'
+HISTORY_FILE = os.environ.get('HISTORY_FILE', 'sent_videos_history.json')
 
 
 class YouTubeSearcher:
@@ -381,9 +390,18 @@ class YouTubeSearcher:
 
 
 class TelegramSender:
-    def __init__(self):
+    def __init__(self, use_history: bool = True):
         self.client = None
         self.youtube = YouTubeSearcher() if YT_DLP_AVAILABLE else None
+        self.history = None
+        
+        # Initialize history for duplicate prevention
+        if use_history and HISTORY_AVAILABLE:
+            try:
+                self.history = VideoHistory(HISTORY_FILE)
+                print(f"📊 History loaded: {len(self.history.get_sent_video_ids())} videos already sent")
+            except Exception as e:
+                print(f"⚠️ Could not load history: {e}")
         
     async def initialize_client(self):
         """Initialize the Telegram client with session persistence."""
@@ -475,22 +493,32 @@ class TelegramSender:
             print("⚠️ No message to send at this time.")
             return
         
-        message = await self.build_message(message_config)
+        # Build message and get video info
+        message, video = await self.build_message_with_video(message_config)
         
         if message:
             parse_mode = messages_config.get('parse_mode', 'md')
             await self.send_message(entity, message, parse_mode=parse_mode)
+            
+            # Mark video as sent in history
+            if video and self.history:
+                self.history.mark_sent(video, target)
+                self.history.save()
     
-    async def build_message(self, config: dict) -> str:
-        """Build a message from configuration with YouTube support."""
+    async def build_message_with_video(self, config: dict) -> tuple:
+        """
+        Build a message from configuration with YouTube support.
+        Returns (message, video) tuple. Video is None if no YouTube video.
+        """
         message_parts = []
+        video = None
         
         if config.get('prefix'):
             message_parts.append(config['prefix'])
         
         youtube_config = config.get('youtube_search')
         if youtube_config and self.youtube:
-            video = self.youtube.get_video(youtube_config)
+            video = self._get_unsent_video(youtube_config)
             
             if video:
                 template = youtube_config.get('template')
@@ -503,7 +531,7 @@ class TelegramSender:
                 query = youtube_config.get('query', '')
                 channel = youtube_config.get('channel', '')
                 search_desc = f"'{query}'" if query else f"channel '{channel}'"
-                message_parts.append(f"⚠️ No YouTube results found for {search_desc}")
+                message_parts.append(f"⚠️ No new YouTube videos found for {search_desc}")
         
         elif config.get('youtube_link'):
             message_parts.append(f"🔗 {config['youtube_link']}")
@@ -514,7 +542,58 @@ class TelegramSender:
         if not message_parts and config.get('content'):
             message_parts.append(config['content'])
         
-        return '\n\n'.join(message_parts)
+        return '\n\n'.join(message_parts), video
+    
+    def _get_unsent_video(self, youtube_config: dict) -> dict:
+        """
+        Get a video that hasn't been sent yet.
+        Tries to find an unsent video from search results.
+        """
+        # Get more results than needed to have options
+        max_results = youtube_config.get('max_results', 15)
+        search_max = max(30, max_results * 2)  # Get more for filtering
+        
+        # Temporarily modify config to get more results
+        config_copy = youtube_config.copy()
+        config_copy['max_results'] = search_max
+        
+        videos = []
+        
+        # Get videos based on config
+        channel = config_copy.get('channel')
+        query = config_copy.get('query', '')
+        sort_by = config_copy.get('sort_by', 'latest')
+        
+        if channel:
+            if query:
+                videos = self.youtube.search_channel(channel, query, search_max, sort_by)
+            else:
+                videos = self.youtube.get_channel_videos(channel, search_max, sort_by)
+        elif query:
+            videos = self.youtube.search(query, search_max, sort_by)
+        
+        if not videos:
+            return None
+        
+        # If no history, return first video
+        if not self.history:
+            return videos[0]
+        
+        # Find first unsent video
+        for video in videos:
+            video_id = video.get('id')
+            if video_id and not self.history.is_sent(video_id):
+                print(f"   ✨ Found unsent video: {video.get('title', 'Unknown')[:40]}")
+                return video
+        
+        # All videos have been sent
+        print(f"   ⚠️ All {len(videos)} videos have already been sent!")
+        return None
+    
+    async def build_message(self, config: dict) -> str:
+        """Build a message from configuration with YouTube support."""
+        message, _ = await self.build_message_with_video(config)
+        return message
     
     def load_messages(self):
         """Load messages configuration from JSON file."""

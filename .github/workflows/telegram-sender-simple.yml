@@ -48,6 +48,23 @@ jobs:
           python -m pip install --upgrade pip
           pip install telethon cryptg yt-dlp
       
+      # Download previous history
+      - name: 📂 Download video history
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: video-history
+          path: ./history
+      
+      - name: 🔄 Restore video history
+        run: |
+          if [ -f "./history/sent_videos_history.json" ]; then
+            cp ./history/sent_videos_history.json ./sent_videos_history.json
+            echo "✅ Video history restored"
+          else
+            echo "ℹ️ No previous history found"
+          fi
+      
       - name: ✏️ Generate config for manual trigger
         if: ${{ github.event.inputs.youtube_query != '' || github.event.inputs.channel_name != '' }}
         run: |
@@ -55,7 +72,6 @@ jobs:
           QUERY='${{ github.event.inputs.youtube_query }}'
           SORT_BY='${{ github.event.inputs.sort_by }}'
           
-          # Start JSON
           echo '{' > messages.json
           echo '  "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",' >> messages.json
           echo '  "parse_mode": "md",' >> messages.json
@@ -79,6 +95,16 @@ jobs:
           TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
           TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
         run: python telegram_sender.py
+      
+      # Save history for next run
+      - name: 💾 Save video history
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: video-history
+          path: ./sent_videos_history.json
+          retention-days: 90
+          overwrite: true
       
       - name: ✅ Complete
         run: echo "✅ Message sent at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"

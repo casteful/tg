@@ -1,6 +1,6 @@
 # Telegram YouTube Sender - GitHub Actions
 
-Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. Features channel selection, sorting options, and customizable templates.
+Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. Features channel selection, sorting options, **duplicate prevention**, and customizable templates.
 
 ## ✨ Features
 
@@ -8,16 +8,45 @@ Send **hourly messages with YouTube links** from your personal Telegram account 
 - 🔍 **YouTube Integration**: Auto-search and share YouTube videos using yt-dlp
 - 📺 **Channel Selection**: Get latest videos from specific channels
 - 📊 **Sorting Options**: Sort by latest, popular, or random
+- 🚫 **Duplicate Prevention**: Never send the same video twice!
 - ⏰ **Hourly Sending**: Runs every hour via GitHub Actions cron
 - 🔐 **Secure**: All credentials stored as GitHub Secrets
 - 🎯 **Flexible Targets**: Send to users, groups, or channels
-- 📝 **Custom Templates**: Format messages exactly how you want
+
+---
+
+## 🚫 Duplicate Prevention
+
+The app automatically tracks sent videos and won't send the same one twice!
+
+### How It Works
+
+1. **History Tracking**: Every sent video is recorded in `sent_videos_history.json`
+2. **Artifact Persistence**: GitHub Actions saves history between runs
+3. **Smart Selection**: Automatically finds the next unsent video
+4. **Fallback**: If all videos have been sent, shows a warning
+
+### View History Locally
+
+```bash
+python history_manager.py --show
+```
+
+### Clear History
+
+```bash
+python history_manager.py --clear
+```
+
+---
 
 ## 📋 Prerequisites
 
 1. **Telegram Account**: Your personal account with phone number
 2. **Telegram API Credentials**: Get from [my.telegram.org](https://my.telegram.org)
 3. **GitHub Repository**: To host the workflow
+
+---
 
 ## 🚀 Quick Start
 
@@ -51,9 +80,9 @@ In your GitHub repository: **Settings → Secrets and variables → Actions**
 | `TELEGRAM_SESSION_STRING` | `1AZWarz...` |
 | `TELEGRAM_TARGET_ENTITY` | `me` or `@username` |
 
-### Step 4: Customize Messages
+### Step 4: Push to GitHub
 
-Edit `messages.json` and push to GitHub!
+Push the code and enable GitHub Actions!
 
 ---
 
@@ -64,18 +93,10 @@ Edit `messages.json` and push to GitHub!
 | Option | Description | Values |
 |--------|-------------|--------|
 | `query` | Search query | Any YouTube search term |
-| `channel` | Channel name/handle | `"Unreal Engine"`, `"@MrBeast"`, channel URL |
+| `channel` | Channel name/handle | `"MrBeast"`, `"@UnrealEngine"` |
 | `sort_by` | Sorting method | `"latest"`, `"popular"`, `"random"` |
 | `max_results` | Number of results | `1` to `50` |
 | `template` | Message format | See template placeholders |
-
-### Sort Options
-
-| Value | Description | Best For |
-|-------|-------------|----------|
-| `latest` | Newest videos first | Breaking news, new uploads |
-| `popular` | Most views first | Trending content, best tutorials |
-| `random` | Random selection | Discovery, variety |
 
 ### Template Placeholders
 
@@ -84,7 +105,6 @@ Edit `messages.json` and push to GitHub!
 | `{title}` | Video title | "UE5 Beginner Tutorial" |
 | `{link}` | YouTube URL | "https://youtube.com/watch?v=..." |
 | `{channel}` | Channel name | "Unreal Engine" |
-| `{channel_url}` | Channel URL | "https://youtube.com/@UnrealEngine" |
 | `{duration}` | Video length | "15:30" |
 | `{views}` | View count | "1.5M" |
 
@@ -92,85 +112,26 @@ Edit `messages.json` and push to GitHub!
 
 ## 📝 Configuration Examples
 
-### 1. Latest Video from a Channel
-
-Get the newest video from a specific channel:
+### Get Latest from Channel (Never Duplicates!)
 
 ```json
 {
     "youtube_search": {
-        "channel": "Unreal Engine",
+        "channel": "MrBeast",
         "sort_by": "latest",
-        "max_results": 1,
-        "template": "🎬 *Latest UE5*\n\n{title}\n\n🔗 {link}"
-    }
-}
-```
-
-### 2. Most Popular Videos
-
-Get the most popular video for a topic:
-
-```json
-{
-    "youtube_search": {
-        "query": "python tutorial 2024",
-        "sort_by": "popular",
         "max_results": 10,
-        "template": "📚 *Top Python*\n\n🎬 {title}\n📺 {channel}\n👁️ {views}\n\n🔗 {link}"
+        "template": "🎬 {title}\n\n🔗 {link}"
     }
 }
 ```
 
-### 3. Search Within a Channel
+**How it works:**
+- Gets the 10 latest videos from MrBeast
+- Checks history to find videos not yet sent
+- Sends the first unsent video
+- Marks it as sent for next time
 
-Search for specific content within a channel:
-
-```json
-{
-    "youtube_search": {
-        "channel": "Fireship",
-        "query": "javascript",
-        "sort_by": "latest",
-        "max_results": 5,
-        "template": "⚡ *Fireship JS*\n\n🎬 {title}\n\n🔗 {link}"
-    }
-}
-```
-
-### 4. Random Discovery
-
-Discover random videos for a topic:
-
-```json
-{
-    "youtube_search": {
-        "query": "indie game devlog",
-        "sort_by": "random",
-        "max_results": 20,
-        "template": "🎮 *Game Dev*\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
-    }
-}
-```
-
-### 5. Channel by Handle (@username)
-
-Use the @handle format:
-
-```json
-{
-    "youtube_search": {
-        "channel": "@LinusTechTips",
-        "sort_by": "latest",
-        "max_results": 5,
-        "template": "💻 *Tech News*\n\n🎬 {title}\n\n🔗 {link}"
-    }
-}
-```
-
-### 6. Full Hourly Configuration
-
-Complete example with time-based rules:
+### Full Hourly Configuration
 
 ```json
 {
@@ -179,7 +140,6 @@ Complete example with time-based rules:
     "hourly_messages": [
         {
             "hours": [0, 1, 2, 3, 4, 5],
-            "prefix": "🌙 *Night Content*",
             "youtube_search": {
                 "channel": "Lofi Girl",
                 "sort_by": "latest",
@@ -188,56 +148,13 @@ Complete example with time-based rules:
         },
         {
             "hours": [6, 7, 8, 9, 10, 11],
-            "prefix": "☀️ *Morning*",
             "youtube_search": {
                 "query": "morning motivation",
-                "sort_by": "popular",
-                "template": "🎯 {title}\n📺 {channel}\n\n🔗 {link}"
-            }
-        },
-        {
-            "hours": [12, 13, 14, 15, 16, 17],
-            "prefix": "📚 *Learning*",
-            "youtube_search": {
-                "channel": "Unreal Engine",
-                "query": "tutorial",
-                "sort_by": "latest",
-                "template": "🎮 {title}\n⏱️ {duration}\n\n🔗 {link}"
-            }
-        },
-        {
-            "hours": [18, 19, 20, 21, 22, 23],
-            "prefix": "🌆 *Evening*",
-            "youtube_search": {
-                "query": "relaxing music",
-                "sort_by": "random",
-                "template": "🎶 {title}\n📺 {channel}\n\n🔗 {link}"
+                "sort_by": "popular"
             }
         }
     ]
 }
-```
-
----
-
-## ⏰ Schedule Configuration
-
-**Default: Every hour**
-```yaml
-schedule:
-  - cron: '0 * * * *'
-```
-
-**Custom schedules:**
-```yaml
-# Every 2 hours
-- cron: '0 */2 * * *'
-
-# Every 30 minutes
-- cron: '*/30 * * * *'
-
-# Specific times
-- cron: '0 9,12,18,21 * * *'
 ```
 
 ---
@@ -254,23 +171,10 @@ python telegram_sender.py --test-youtube
 python test_send.py
 ```
 
-### Manual GitHub Trigger
-1. Actions → Select workflow → Run workflow
-2. Enter custom YouTube query
-3. Run
-
----
-
-## ⚠️ Node.js Fix
-
-The workflow includes:
-
-```yaml
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+### View History
+```bash
+python history_manager.py --show
 ```
-
-This fixes the Node.js 20 deprecation warning.
 
 ---
 
@@ -279,15 +183,28 @@ This fixes the Node.js 20 deprecation warning.
 ```
 telegram-userbot-github-actions/
 ├── .github/workflows/
-│   ├── telegram-sender.yml
-│   └── telegram-sender-simple.yml
-├── telegram_sender.py
-├── setup.py
-├── test_send.py
-├── messages.json
-├── requirements.txt
-└── README.md
+│   └── telegram-sender.yml        # Single workflow (schedule + manual)
+├── telegram_sender.py              # Main script
+├── history_manager.py              # Duplicate prevention
+├── setup.py                        # Session setup
+├── test_send.py                    # Local testing
+├── messages.json                   # Message config
+├── sent_videos_history.json        # Sent video history (auto-generated)
+└── requirements.txt                # Dependencies
 ```
+
+---
+
+## ⚙️ Manual Trigger Options
+
+When manually triggering on GitHub:
+
+| Option | Description |
+|--------|-------------|
+| `youtube_query` | Custom search query |
+| `channel_name` | Specific channel |
+| `sort_by` | latest/popular/random |
+| `skip_history` | Send even if already sent |
 
 ---
 
@@ -295,10 +212,9 @@ telegram-userbot-github-actions/
 
 | Issue | Solution |
 |-------|----------|
-| "yt-dlp not installed" | `pip install yt-dlp` |
-| "No results found" | Check channel name/URL |
-| "Session not authorized" | Re-run `--setup` |
-| Workflow not running | Check Actions tab for errors |
+| "All videos have been sent" | Clear history or add new content |
+| "No history found" | Normal for first run |
+| Channel not found | Use exact channel handle (@name) |
 
 ---
 
