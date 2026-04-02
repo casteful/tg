@@ -2,7 +2,7 @@
 """
 Telegram Userbot Sender with YouTube Search
 Sends messages from your personal Telegram account using Telethon (MTProto API).
-Supports YouTube video search, channel selection, and sorting options.
+Supports YouTube video search, channel selection, and duplicate prevention via Telegram history.
 """
 
 import os
@@ -10,6 +10,7 @@ import sys
 import json
 import asyncio
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -25,14 +26,6 @@ except ImportError:
     YT_DLP_AVAILABLE = False
     print("⚠️ yt-dlp not installed. YouTube features disabled.")
 
-# Import history manager
-try:
-    from history_manager import VideoHistory
-    HISTORY_AVAILABLE = True
-except ImportError:
-    HISTORY_AVAILABLE = False
-    print("⚠️ history_manager not found. Duplicate prevention disabled.")
-
 
 # Configuration from environment variables
 API_ID = os.environ.get('TELEGRAM_API_ID')
@@ -44,13 +37,14 @@ SESSION_STRING = os.environ.get('TELEGRAM_SESSION_STRING')
 TARGET_ENTITY = os.environ.get('TELEGRAM_TARGET_ENTITY')
 MESSAGE_FILE = os.environ.get('MESSAGE_FILE', 'messages.json')
 SESSION_FILE = 'telegram_session.session'
-HISTORY_FILE = os.environ.get('HISTORY_FILE', 'sent_videos_history.json')
+
+# Skip history check if set
+SKIP_HISTORY = os.environ.get('SKIP_HISTORY', '').lower() in ('true', '1', 'yes')
 
 
 class YouTubeSearcher:
     """Search YouTube for videos using yt-dlp with channel and sorting support."""
     
-    # Sort options
     SORT_LATEST = 'latest'
     SORT_POPULAR = 'popular'
     SORT_RANDOM = 'random'
@@ -60,17 +54,7 @@ class YouTubeSearcher:
             raise ImportError("yt-dlp is not installed. Run: pip install yt-dlp")
     
     def search(self, query: str, max_results: int = 15, sort_by: str = 'random') -> list:
-        """
-        Search YouTube for videos.
-        
-        Args:
-            query: Search query
-            max_results: Maximum number of results to return
-            sort_by: Sorting method - 'latest', 'popular', or 'random'
-            
-        Returns:
-            List of video dictionaries sorted by the specified method
-        """
+        """Search YouTube for videos."""
         try:
             ydl_opts = {
                 'quiet': True,
@@ -92,7 +76,6 @@ class YouTubeSearcher:
                         if entry:
                             videos.append(self._parse_entry(entry))
             
-            # Sort results
             return self._sort_videos(videos, sort_by)
             
         except Exception as e:
@@ -100,20 +83,8 @@ class YouTubeSearcher:
             return []
     
     def search_channel(self, channel_name: str, query: str = '', max_results: int = 15, sort_by: str = 'latest') -> list:
-        """
-        Search within a specific YouTube channel.
-        
-        Args:
-            channel_name: Channel name or handle (e.g., "Unreal Engine" or "@UnrealEngine")
-            query: Optional search query to filter within channel
-            max_results: Maximum number of results
-            sort_by: Sorting method
-            
-        Returns:
-            List of video dictionaries from the channel
-        """
+        """Search within a specific YouTube channel."""
         try:
-            # Build search query for channel
             if query:
                 search_query = f"{query} channel:{channel_name}"
             else:
@@ -126,33 +97,18 @@ class YouTubeSearcher:
             return []
     
     def get_channel_videos(self, channel_identifier: str, max_results: int = 15, sort_by: str = 'latest') -> list:
-        """
-        Get videos directly from a YouTube channel.
-        
-        Args:
-            channel_identifier: Channel URL, handle, or ID
-            max_results: Maximum number of results
-            sort_by: Sorting method - 'latest' or 'popular'
-            
-        Returns:
-            List of video dictionaries from the channel
-        """
+        """Get videos directly from a YouTube channel."""
         try:
             # Determine channel URL
             if 'youtube.com' in channel_identifier or 'youtu.be' in channel_identifier:
-                # Already a URL - ensure it ends with /videos
                 channel_url = channel_identifier.rstrip('/')
                 if not channel_url.endswith('/videos'):
                     channel_url += '/videos'
             elif channel_identifier.startswith('@'):
-                # Handle format: @MrBeast
                 channel_url = f"https://www.youtube.com/{channel_identifier}/videos"
             elif channel_identifier.startswith('UC') and len(channel_identifier) == 24:
-                # YouTube channel ID format: UC...
                 channel_url = f"https://www.youtube.com/channel/{channel_identifier}/videos"
             else:
-                # Assume it's a channel name - convert to @handle format
-                # Remove spaces and special characters
                 handle = channel_identifier.replace(' ', '').replace('"', '').replace("'", '')
                 channel_url = f"https://www.youtube.com/@{handle}/videos"
             
@@ -173,7 +129,6 @@ class YouTubeSearcher:
                     result = ydl.extract_info(channel_url, download=False)
                     
                     if result:
-                        # Handle different result types
                         entries = []
                         if 'entries' in result:
                             entries = result['entries']
@@ -182,7 +137,6 @@ class YouTubeSearcher:
                         
                         for entry in entries:
                             if entry:
-                                # Skip nested playlists (like "Videos", "Shorts" tabs)
                                 if entry.get('_type') == 'playlist':
                                     continue
                                 videos.append(self._parse_entry(entry))
@@ -190,13 +144,10 @@ class YouTubeSearcher:
                 except Exception as e:
                     print(f"⚠️ Direct channel access failed: {e}")
             
-            # If no videos found, try search fallback
             if not videos:
                 print(f"   🔄 Trying search fallback for: {channel_identifier}")
-                # Use search with channel name to find videos
                 return self.search(f"{channel_identifier}", max_results * 2, sort_by)
             
-            # Sort results
             return self._sort_videos(videos, sort_by)
             
         except Exception as e:
@@ -205,7 +156,6 @@ class YouTubeSearcher:
     
     def _parse_entry(self, entry: dict) -> dict:
         """Parse a yt-dlp entry into a standardized video dictionary."""
-        # Handle timestamp if available
         upload_date = entry.get('upload_date') or entry.get('timestamp')
         
         return {
@@ -227,99 +177,29 @@ class YouTubeSearcher:
             return videos
         
         if sort_by == self.SORT_LATEST:
-            # Sort by upload date (newest first)
             def sort_key(v):
                 date = v.get('upload_date')
                 if date:
-                    # Convert to comparable format
                     if isinstance(date, (int, float)):
-                        return -date  # Negative for descending
+                        return -date
                     return str(date)
                 return ''
             return sorted(videos, key=sort_key, reverse=True)
         
         elif sort_by == self.SORT_POPULAR:
-            # Sort by views (highest first)
             def sort_key(v):
                 views = v.get('views')
                 if views and isinstance(views, (int, float)):
-                    return -views  # Negative for descending
+                    return -views
                 return 0
             return sorted(videos, key=sort_key)
         
         elif sort_by == self.SORT_RANDOM:
-            # Shuffle for random selection
             shuffled = videos.copy()
             random.shuffle(shuffled)
             return shuffled
         
         return videos
-    
-    def get_video(self, config: dict) -> dict:
-        """
-        Get a single video based on configuration.
-        
-        Args:
-            config: YouTube search configuration dict with:
-                - query: Search query (optional if channel is specified)
-                - channel: Channel name/URL (optional)
-                - sort_by: 'latest', 'popular', or 'random'
-                - max_results: Number of results to fetch
-                - random: Legacy option (equivalent to sort_by='random')
-                
-        Returns:
-            Single video dictionary or None
-        """
-        query = config.get('query', '')
-        channel = config.get('channel', '')
-        
-        # Determine sort method
-        sort_by = config.get('sort_by', 'random')
-        # Support legacy 'random' option
-        if config.get('random') and sort_by == 'random':
-            sort_by = self.SORT_RANDOM
-        
-        max_results = config.get('max_results', 15)
-        
-        videos = []
-        
-        if channel:
-            # Channel-specific search
-            if query:
-                # Search within channel
-                print(f"🔍 Searching in channel '{channel}' for: {query}")
-                videos = self.search_channel(channel, query, max_results, sort_by)
-            else:
-                # Get all recent videos from channel
-                print(f"🔍 Getting videos from channel: {channel}")
-                videos = self.get_channel_videos(channel, max_results, sort_by)
-        elif query:
-            # General search
-            print(f"🔍 Searching YouTube for: {query}")
-            videos = self.search(query, max_results, sort_by)
-        else:
-            print("⚠️ No query or channel specified!")
-            return None
-        
-        # Return first video after sorting
-        if videos:
-            return videos[0]
-        return None
-    
-    def get_latest_video(self, channel: str) -> dict:
-        """Quick method to get the latest video from a channel."""
-        videos = self.get_channel_videos(channel, max_results=1, sort_by=self.SORT_LATEST)
-        return videos[0] if videos else None
-    
-    def get_popular_video(self, query: str, max_results: int = 15) -> dict:
-        """Quick method to get the most popular video for a query."""
-        videos = self.search(query, max_results, sort_by=self.SORT_POPULAR)
-        return videos[0] if videos else None
-    
-    def get_random_video(self, query: str, max_results: int = 15) -> dict:
-        """Quick method to get a random video for a query."""
-        videos = self.search(query, max_results, sort_by=self.SORT_RANDOM)
-        return videos[0] if videos else None
     
     def _format_duration(self, seconds):
         """Format duration in seconds to HH:MM:SS or MM:SS."""
@@ -340,18 +220,8 @@ class YouTubeSearcher:
             return str(seconds)
     
     def format_video_message(self, video: dict, template: str = None) -> str:
-        """
-        Format a video as a message.
-        
-        Args:
-            video: Video dictionary
-            template: Optional custom template with placeholders
-            
-        Returns:
-            Formatted message string
-        """
+        """Format a video as a message."""
         if template:
-            # Replace placeholders
             message = template.format(
                 title=video.get('title', 'Unknown'),
                 link=video.get('link', ''),
@@ -361,7 +231,6 @@ class YouTubeSearcher:
                 channel_url=video.get('channel_url', '')
             )
         else:
-            # Default format
             views_str = self._format_views(video.get('views'))
             message = f"🎬 **{video.get('title', 'Unknown')}**\n\n"
             message += f"📺 Channel: {video.get('channel', 'Unknown')}\n"
@@ -390,21 +259,23 @@ class YouTubeSearcher:
 
 
 class TelegramSender:
-    def __init__(self, use_history: bool = True):
+    """Telegram sender with YouTube integration and duplicate prevention."""
+    
+    # Regex to extract YouTube video IDs from messages
+    YOUTUBE_PATTERNS = [
+        r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
+        r'youtu\.be/([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/embed/([a-zA-Z0-9_-]{11})',
+        r'youtube\.com/shorts/([a-zA-Z0-9_-]{11})',
+    ]
+    
+    def __init__(self):
         self.client = None
         self.youtube = YouTubeSearcher() if YT_DLP_AVAILABLE else None
-        self.history = None
-        
-        # Initialize history for duplicate prevention
-        if use_history and HISTORY_AVAILABLE:
-            try:
-                self.history = VideoHistory(HISTORY_FILE)
-                print(f"📊 History loaded: {len(self.history.get_sent_video_ids())} videos already sent")
-            except Exception as e:
-                print(f"⚠️ Could not load history: {e}")
-        
+        self._sent_video_ids = None
+    
     async def initialize_client(self):
-        """Initialize the Telegram client with session persistence."""
+        """Initialize the Telegram client."""
         
         if not API_ID or not API_HASH:
             raise ValueError("TELEGRAM_API_ID and TELEGRAM_API_HASH must be set!")
@@ -455,6 +326,59 @@ class TelegramSender:
             print(f"Error resolving entity: {e}")
             raise
     
+    async def get_sent_video_ids(self, entity, limit: int = 100) -> set:
+        """
+        Get YouTube video IDs from recent messages in the chat.
+        This checks what videos have already been sent to prevent duplicates.
+        
+        Args:
+            entity: Telegram entity (chat/user)
+            limit: Maximum number of messages to check
+            
+        Returns:
+            Set of YouTube video IDs that have been sent
+        """
+        if self._sent_video_ids is not None:
+            return self._sent_video_ids
+        
+        if SKIP_HISTORY:
+            print("⏭️ Skipping history check (SKIP_HISTORY=true)")
+            return set()
+        
+        print(f"📜 Checking last {limit} messages for sent videos...")
+        
+        video_ids = set()
+        
+        try:
+            async for message in self.client.iter_messages(entity, limit=limit):
+                if message.message:
+                    # Extract YouTube video IDs from message text
+                    for pattern in self.YOUTUBE_PATTERNS:
+                        matches = re.findall(pattern, message.message)
+                        video_ids.update(matches)
+                    
+                    # Also check for bare YouTube links
+                    if 'youtube.com' in message.message or 'youtu.be' in message.message:
+                        # Find any 11-char video ID
+                        ids = re.findall(r'[a-zA-Z0-9_-]{11}', message.message)
+                        # Validate they look like video IDs
+                        for vid in ids:
+                            if len(vid) == 11 and not vid.startswith('UC'):  # UC is channel IDs
+                                video_ids.add(vid)
+            
+            print(f"📊 Found {len(video_ids)} videos already sent in chat history")
+            self._sent_video_ids = video_ids
+            return video_ids
+            
+        except Exception as e:
+            print(f"⚠️ Error fetching message history: {e}")
+            return set()
+    
+    async def is_video_sent(self, entity, video_id: str) -> bool:
+        """Check if a video has already been sent."""
+        sent_ids = await self.get_sent_video_ids(entity)
+        return video_id in sent_ids
+    
     async def send_message(self, entity, message: str, parse_mode: str = 'md'):
         """Send a message to the specified entity."""
         try:
@@ -494,18 +418,13 @@ class TelegramSender:
             return
         
         # Build message and get video info
-        message, video = await self.build_message_with_video(message_config)
+        message, video = await self.build_message_with_video(message_config, entity)
         
         if message:
             parse_mode = messages_config.get('parse_mode', 'md')
             await self.send_message(entity, message, parse_mode=parse_mode)
-            
-            # Mark video as sent in history
-            if video and self.history:
-                self.history.mark_sent(video, target)
-                self.history.save()
     
-    async def build_message_with_video(self, config: dict) -> tuple:
+    async def build_message_with_video(self, config: dict, entity=None) -> tuple:
         """
         Build a message from configuration with YouTube support.
         Returns (message, video) tuple. Video is None if no YouTube video.
@@ -518,7 +437,7 @@ class TelegramSender:
         
         youtube_config = config.get('youtube_search')
         if youtube_config and self.youtube:
-            video = self._get_unsent_video(youtube_config)
+            video = await self._get_unsent_video(youtube_config, entity)
             
             if video:
                 template = youtube_config.get('template')
@@ -544,22 +463,19 @@ class TelegramSender:
         
         return '\n\n'.join(message_parts), video
     
-    def _get_unsent_video(self, youtube_config: dict) -> dict:
+    async def _get_unsent_video(self, youtube_config: dict, entity=None) -> dict:
         """
         Get a video that hasn't been sent yet.
-        Tries to find an unsent video from search results.
+        Checks Telegram history to avoid duplicates.
         """
-        # Get more results than needed to have options
         max_results = youtube_config.get('max_results', 15)
-        search_max = max(30, max_results * 2)  # Get more for filtering
+        search_max = max(30, max_results * 2)
         
-        # Temporarily modify config to get more results
         config_copy = youtube_config.copy()
         config_copy['max_results'] = search_max
         
         videos = []
         
-        # Get videos based on config
         channel = config_copy.get('channel')
         query = config_copy.get('query', '')
         sort_by = config_copy.get('sort_by', 'latest')
@@ -575,24 +491,25 @@ class TelegramSender:
         if not videos:
             return None
         
-        # If no history, return first video
-        if not self.history:
-            return videos[0]
+        # If we have entity and skip_history is not set, check for duplicates
+        if entity and not SKIP_HISTORY:
+            sent_ids = await self.get_sent_video_ids(entity)
+            
+            for video in videos:
+                video_id = video.get('id')
+                if video_id and video_id not in sent_ids:
+                    print(f"   ✨ Found unsent video: {video.get('title', 'Unknown')[:40]}")
+                    return video
+            
+            print(f"   ⚠️ All {len(videos)} videos have already been sent!")
+            return None
         
-        # Find first unsent video
-        for video in videos:
-            video_id = video.get('id')
-            if video_id and not self.history.is_sent(video_id):
-                print(f"   ✨ Found unsent video: {video.get('title', 'Unknown')[:40]}")
-                return video
-        
-        # All videos have been sent
-        print(f"   ⚠️ All {len(videos)} videos have already been sent!")
-        return None
+        # No entity or skip_history - return first video
+        return videos[0]
     
     async def build_message(self, config: dict) -> str:
         """Build a message from configuration with YouTube support."""
-        message, _ = await self.build_message_with_video(config)
+        message, _ = await self.build_message_with_video(config, None)
         return message
     
     def load_messages(self):
@@ -632,17 +549,17 @@ class TelegramSender:
                 {
                     "hours": [12, 13, 14, 15, 16, 17],
                     "youtube_search": {
-                        "query": "focus productivity music",
+                        "query": "productive music",
                         "sort_by": "popular",
-                        "template": "🎯 **Productivity Boost**\n\n🎬 {title}\n\n🔗 {link}"
+                        "template": "🎯 **Productivity Boost**\n\n🎬 {title}\n⏱️ {duration}\n\n🔗 {link}"
                     }
                 },
                 {
                     "hours": [18, 19, 20, 21, 22, 23],
                     "youtube_search": {
-                        "query": "evening chill",
+                        "query": "evening chill music",
                         "sort_by": "random",
-                        "template": "🌆 **Evening Chill**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+                        "template": "🌙 **Evening Chill**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
                     }
                 }
             ]
@@ -736,12 +653,11 @@ async def test_youtube_search():
     print("="*60)
     print("\nTest options:")
     print("1. Search by query")
-    print("2. Get latest video from channel")
+    print("2. Get latest from channel")
     print("3. Search within a channel")
     print("4. Get popular videos")
-    print("5. Full config test")
     
-    choice = input("\nSelect option (1-5): ")
+    choice = input("\nSelect option (1-4): ")
     
     if choice == '1':
         query = input("Enter search query: ") or "ue5 tutorial"
@@ -753,7 +669,7 @@ async def test_youtube_search():
         videos = searcher.search(query, max_results=5, sort_by=sort_by)
         
     elif choice == '2':
-        channel = input("Enter channel name (e.g., 'Unreal Engine' or '@UnrealEngine'): ") or "Unreal Engine"
+        channel = input("Enter channel name: ") or "MrBeast"
         videos = searcher.get_channel_videos(channel, max_results=5, sort_by='latest')
         
     elif choice == '3':
@@ -764,25 +680,6 @@ async def test_youtube_search():
     elif choice == '4':
         query = input("Enter search query: ") or "python tutorial"
         videos = searcher.search(query, max_results=5, sort_by='popular')
-        
-    elif choice == '5':
-        # Full config test
-        config = {
-            "channel": input("Channel name (leave empty for general search): ") or None,
-            "query": input("Search query: ") or "ue5 tutorial",
-            "sort_by": input("Sort by (latest/popular/random): ") or "latest",
-            "max_results": 10
-        }
-        
-        if not config["channel"]:
-            del config["channel"]
-        
-        video = searcher.get_video(config)
-        if video:
-            print(f"\n{'='*60}")
-            print(searcher.format_video_message(video))
-            print(f"{'='*60}")
-        return
     
     else:
         print("Invalid choice!")
@@ -795,7 +692,6 @@ async def test_youtube_search():
             print(f"{i}. {video['title']}")
             print(f"   📺 {video['channel']}")
             print(f"   ⏱️ {video['duration']}")
-            print(f"   👁️ {searcher._format_views(video['views'])}")
             print(f"   🔗 {video['link']}")
             print()
     else:

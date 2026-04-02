@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 """
 Test script to verify YouTube search and Telegram sending locally.
-Supports channel selection, sorting options, and duplicate prevention.
+Checks Telegram history to prevent duplicates.
 """
 
 import os
 import sys
 import asyncio
 import random
+import re
 
 try:
     from telethon import TelegramClient
@@ -18,23 +19,46 @@ except ImportError as e:
     print("Run: pip install telethon yt-dlp")
     sys.exit(1)
 
-# Try to import history manager
-try:
-    from history_manager import VideoHistory
-    HISTORY_AVAILABLE = True
-except ImportError:
-    HISTORY_AVAILABLE = False
-
 
 class YouTubeTester:
-    """YouTube search tester with channel and sorting support."""
+    """YouTube search tester with Telegram history checking."""
     
-    SORT_LATEST = 'latest'
-    SORT_POPULAR = 'popular'
-    SORT_RANDOM = 'random'
+    YOUTUBE_PATTERNS = [
+        r'youtube\.com/watch\?v=([a-zA-Z0-9_-]{11})',
+        r'youtu\.be/([a-zA-Z0-9_-]{11})',
+    ]
     
-    def __init__(self):
-        self.history = VideoHistory() if HISTORY_AVAILABLE else None
+    def __init__(self, client=None, entity=None):
+        self.client = client
+        self.entity = entity
+        self._sent_ids = None
+    
+    async def get_sent_video_ids(self, limit=50):
+        """Get YouTube video IDs from recent Telegram messages."""
+        if self._sent_ids is not None:
+            return self._sent_ids
+        
+        if not self.client or not self.entity:
+            return set()
+        
+        print(f"📜 Checking last {limit} messages for sent videos...")
+        
+        video_ids = set()
+        
+        try:
+            async for message in self.client.iter_messages(self.entity, limit=limit):
+                if message.message:
+                    for pattern in self.YOUTUBE_PATTERNS:
+                        matches = re.findall(pattern, message.message)
+                        video_ids.update(matches)
+            
+            print(f"📊 Found {len(video_ids)} videos already sent")
+            self._sent_ids = video_ids
+            return video_ids
+            
+        except Exception as e:
+            print(f"⚠️ Error fetching history: {e}")
+            return set()
     
     def search(self, query: str, max_results: int = 10, sort_by: str = 'random'):
         """Search YouTube."""
@@ -70,9 +94,8 @@ class YouTubeTester:
     
     def get_channel_videos(self, channel: str, max_results: int = 10, sort_by: str = 'latest'):
         """Get videos from a channel."""
-        print(f"\n📺 Getting videos from channel: '{channel}' (sort: {sort_by})\n")
+        print(f"\n📺 Getting videos from channel: '{channel}'\n")
         
-        # Determine channel URL - append /videos to get the videos tab
         if 'youtube.com' in channel:
             channel_url = channel.rstrip('/')
             if not channel_url.endswith('/videos'):
@@ -82,14 +105,11 @@ class YouTubeTester:
         else:
             channel_url = f"https://www.youtube.com/@{channel.replace(' ', '')}/videos"
         
-        print(f"   📺 Accessing: {channel_url}")
-        
         ydl_opts = {
             'quiet': True,
             'extract_flat': 'in_playlist',
             'no_warnings': True,
             'playlistend': max_results,
-            'extractor_args': {'youtube': {'player_client': ['web']}},
         }
         
         videos = []
@@ -110,96 +130,45 @@ class YouTubeTester:
                                 'link': entry.get('url') or f"https://www.youtube.com/watch?v={entry.get('id', '')}",
                             })
             except Exception as e:
-                print(f"⚠️ Direct access failed: {e}")
-        
-        # Fallback to search if no videos found
-        if not videos:
-            print(f"   🔄 Trying search fallback...")
-            return self.search(channel, max_results * 2, sort_by)
+                print(f"⚠️ Error: {e}")
+                return self.search(channel, max_results, sort_by)
         
         return self._sort_videos(videos, sort_by)
     
-    def search_in_channel(self, channel: str, query: str, max_results: int = 10, sort_by: str = 'latest'):
-        """Search within a channel."""
-        print(f"\n🔍 Searching '{query}' in channel: '{channel}' (sort: {sort_by})\n")
-        return self.search(f"{query} channel:{channel}", max_results, sort_by)
-    
-    def get_unsent_video(self, videos: list):
-        """Get first unsent video from list."""
-        if not self.history:
-            return videos[0] if videos else None
+    async def display_videos(self, videos: list, show_sent_status: bool = True):
+        """Display video list with sent status."""
+        if not videos:
+            print("❌ No videos found!")
+            return videos
         
-        for video in videos:
-            if video.get('id') and not self.history.is_sent(video['id']):
-                return video
+        sent_ids = await self.get_sent_video_ids() if show_sent_status else set()
         
-        return None
+        print(f"\n✅ Found {len(videos)} videos:\n")
+        for i, video in enumerate(videos, 1):
+            sent_marker = " ✓ SENT" if video.get('id') in sent_ids else " ○ NEW"
+            
+            print(f"{i}. {video['title'][:50]}")
+            print(f"   📺 {video['channel']}")
+            if show_sent_status:
+                print(f"   📊 {sent_marker}")
+            print()
+        
+        return videos
     
     def _sort_videos(self, videos: list, sort_by: str) -> list:
-        """Sort videos."""
         if not videos:
             return videos
         
-        if sort_by == self.SORT_LATEST:
+        if sort_by == 'latest':
             return videos
-        elif sort_by == self.SORT_POPULAR:
+        elif sort_by == 'popular':
             return sorted(videos, key=lambda v: -(v.get('views', 0) or 0))
-        elif sort_by == self.SORT_RANDOM:
+        elif sort_by == 'random':
             shuffled = videos.copy()
             random.shuffle(shuffled)
             return shuffled
         
         return videos
-    
-    def display_videos(self, videos: list, show_sent_status: bool = True):
-        """Display video list with sent status."""
-        if not videos:
-            print("❌ No videos found!")
-            return
-        
-        sent_ids = self.history.get_sent_video_ids() if (self.history and show_sent_status) else set()
-        
-        print(f"\n✅ Found {len(videos)} videos:\n")
-        for i, video in enumerate(videos, 1):
-            views_str = self._format_views(video.get('views'))
-            sent_marker = " ✓ SENT" if video.get('id') in sent_ids else " ○ NEW"
-            
-            print(f"{i}. {video['title'][:50]}")
-            print(f"   📺 {video['channel']}")
-            print(f"   ⏱️ {self._format_duration(video['duration'])}")
-            if views_str and views_str != 'N/A':
-                print(f"   👁️ {views_str}")
-            if show_sent_status and self.history:
-                print(f"   📊 {sent_marker}")
-            print(f"   🔗 {video['link']}")
-            print()
-    
-    def _format_duration(self, seconds):
-        if not seconds:
-            return 'N/A'
-        try:
-            seconds = int(seconds)
-            hours = seconds // 3600
-            minutes = (seconds % 3600) // 60
-            secs = seconds % 60
-            if hours > 0:
-                return f"{hours}:{minutes:02d}:{secs:02d}"
-            return f"{minutes}:{secs:02d}"
-        except:
-            return str(seconds)
-    
-    def _format_views(self, views):
-        if not views:
-            return 'N/A'
-        try:
-            views = int(views)
-            if views >= 1_000_000:
-                return f"{views / 1_000_000:.1f}M"
-            elif views >= 1_000:
-                return f"{views / 1_000:.1f}K"
-            return str(views)
-        except:
-            return str(views)
 
 
 async def test_telegram_send():
@@ -211,53 +180,57 @@ async def test_telegram_send():
     session_string = os.environ.get('TELEGRAM_SESSION_STRING') or input("Session String: ")
     target = os.environ.get('TELEGRAM_TARGET_ENTITY') or input("Target (me/@username): ")
     
-    # YouTube options
+    # Connect to Telegram
+    client = TelegramClient(StringSession(session_string), int(api_id), api_hash)
+    await client.connect()
+    
+    if not await client.is_user_authorized():
+        print("❌ Session not authorized!")
+        return
+    
+    entity = await client.get_entity(target if target != 'me' else 'me')
+    print(f"✅ Connected to: {entity}")
+    
+    # Initialize tester with Telegram client
+    yt = YouTubeTester(client, entity)
+    
     print("\n" + "="*50)
     print("YouTube Search Options")
     print("="*50)
     print("1. General search")
     print("2. Latest from channel")
-    print("3. Search within channel")
-    print("4. Popular videos")
+    print("3. Popular videos")
     
-    choice = input("\nSelect (1-4): ")
-    
-    yt = YouTubeTester()
-    videos = []
+    choice = input("\nSelect (1-3): ")
     
     if choice == '1':
         query = input("Search query: ") or "ue5 tutorial"
-        print("\nSort: (1) latest, (2) popular, (3) random")
-        sort_choice = input("Select (default=2): ") or "2"
-        sort_map = {'1': 'latest', '2': 'popular', '3': 'random'}
-        videos = yt.search(query, max_results=10, sort_by=sort_map.get(sort_choice, 'popular'))
-        
+        videos = yt.search(query, max_results=10, sort_by='popular')
     elif choice == '2':
         channel = input("Channel name: ") or "MrBeast"
         videos = yt.get_channel_videos(channel, max_results=10, sort_by='latest')
-        
     elif choice == '3':
-        channel = input("Channel name: ") or "Unreal Engine"
-        query = input("Search query: ") or "tutorial"
-        videos = yt.search_in_channel(channel, query, max_results=10, sort_by='latest')
-    
-    elif choice == '4':
         query = input("Search query: ") or "python tutorial"
         videos = yt.search(query, max_results=10, sort_by='popular')
-    
     else:
         print("Invalid choice!")
+        await client.disconnect()
         return
     
-    yt.display_videos(videos)
+    await yt.display_videos(videos)
     
     if not videos:
+        await client.disconnect()
         return
     
-    # Suggest unsent video
-    unsent = yt.get_unsent_video(videos)
+    # Find unsent video
+    sent_ids = await yt.get_sent_video_ids()
+    unsent = [v for v in videos if v.get('id') not in sent_ids]
+    
     if unsent:
-        print(f"\n💡 Suggested (unsent): {unsent['title'][:50]}")
+        print(f"\n💡 Suggested (unsent): {unsent[0]['title'][:50]}")
+    else:
+        print("\n⚠️ All videos have been sent!")
     
     # Select video
     print("\nSelect a video (1-10) or press Enter for suggested:")
@@ -266,132 +239,60 @@ async def test_telegram_send():
     if choice.isdigit() and 1 <= int(choice) <= len(videos):
         video = videos[int(choice) - 1]
     elif unsent:
-        video = unsent
+        video = unsent[0]
     else:
         video = videos[0]
     
     # Check if already sent
-    if yt.history and yt.history.is_sent(video.get('id', '')):
+    if video.get('id') in sent_ids:
         print(f"\n⚠️ Warning: This video was already sent!")
         confirm = input("Send anyway? (y/n): ")
         if confirm.lower() != 'y':
             print("❌ Cancelled.")
+            await client.disconnect()
             return
     
-    message = f"🎬 **{video['title']}**\n\n📺 {video['channel']}\n⏱️ {yt._format_duration(video['duration'])}\n\n🔗 {video['link']}"
+    message = f"🎬 **{video['title']}**\n\n📺 {video['channel']}\n\n🔗 {video['link']}"
     
     print(f"\n📝 Message to send:\n{'-'*50}\n{message}\n{'-'*50}")
     
     confirm = input("\nSend this message? (y/n): ")
     if confirm.lower() != 'y':
         print("❌ Cancelled.")
-        return
-    
-    # Send via Telegram
-    try:
-        api_id_int = int(api_id)
-        client = TelegramClient(StringSession(session_string), api_id_int, api_hash)
-        await client.connect()
-        
-        if not await client.is_user_authorized():
-            print("❌ Session not authorized!")
-            return
-        
-        entity = await client.get_entity(target if target != 'me' else 'me')
-        await client.send_message(entity, message, parse_mode='md', link_preview=True)
-        
-        print(f"\n✅ Message sent to {entity}!")
-        
-        # Mark as sent
-        if yt.history:
-            yt.history.mark_sent(video, target)
-            yt.history.save()
-            print("📝 Video marked as sent in history.")
-        
         await client.disconnect()
-        
-    except Exception as e:
-        print(f"❌ Error: {e}")
-
-
-def show_history():
-    """Show video history."""
-    if not HISTORY_AVAILABLE:
-        print("❌ History manager not available!")
         return
     
-    history = VideoHistory()
+    # Send
+    await client.send_message(entity, message, parse_mode='md', link_preview=True)
+    print(f"\n✅ Message sent!")
     
-    print("\n" + "="*60)
-    print("📊 VIDEO HISTORY")
-    print("="*60)
-    
-    stats = history.get_stats()
-    print(f"\n📈 Total sent: {stats.get('total_sent', 0)}")
-    
-    recent = history.get_recent_sent(10)
-    if recent:
-        print(f"\n📝 Recently sent:")
-        for i, v in enumerate(recent, 1):
-            print(f"   {i}. {v.get('title', 'Unknown')[:45]}")
-    else:
-        print("\n📝 No videos in history yet")
+    await client.disconnect()
 
 
 def main():
     print("""
 ╔══════════════════════════════════════════════════════════════╗
 ║        Telegram + YouTube Integration Test Script            ║
-║          (With Duplicate Prevention)                         ║
+║          (Checks Telegram history for duplicates)            ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
     
     print("Options:")
-    print("1. Test YouTube search only")
-    print("2. Test full Telegram send with YouTube")
-    print("3. Quick test: Latest from channel")
-    print("4. Quick test: Popular videos")
-    print("5. Show history")
-    print("6. Clear history")
-    print("7. Exit")
+    print("1. Test full Telegram send with YouTube")
+    print("2. Quick test: YouTube search only")
+    print("3. Exit")
     
-    choice = input("\nSelect option (1-7): ")
-    
-    yt = YouTubeTester()
+    choice = input("\nSelect option (1-3): ")
     
     if choice == '1':
-        print("\n--- YouTube Search Test ---")
-        query = input("Enter search query: ") or "ue5 tutorial"
-        print("\nSort: (1) latest, (2) popular, (3) random")
-        sort_choice = input("Select (default=3): ") or "3"
-        sort_map = {'1': 'latest', '2': 'popular', '3': 'random'}
-        videos = yt.search(query, max_results=10, sort_by=sort_map.get(sort_choice, 'random'))
-        yt.display_videos(videos)
-        
-    elif choice == '2':
         asyncio.run(test_telegram_send())
-        
-    elif choice == '3':
-        channel = input("Channel name (default=MrBeast): ") or "MrBeast"
-        videos = yt.get_channel_videos(channel, max_results=10, sort_by='latest')
-        yt.display_videos(videos)
-        
-    elif choice == '4':
-        query = input("Search query (default=python tutorial): ") or "python tutorial"
-        videos = yt.search(query, max_results=10, sort_by='popular')
-        yt.display_videos(videos)
-        
-    elif choice == '5':
-        show_history()
-        
-    elif choice == '6':
-        if HISTORY_AVAILABLE:
-            confirm = input("Clear all history? (yes/no): ")
-            if confirm.lower() == 'yes':
-                VideoHistory().clear_history()
-        else:
-            print("❌ History manager not available!")
-    
+    elif choice == '2':
+        yt = YouTubeTester()
+        query = input("Search query: ") or "ue5 tutorial"
+        videos = yt.search(query, max_results=5)
+        print(f"\nFound {len(videos)} videos")
+        for v in videos:
+            print(f"  - {v['title'][:50]}")
     else:
         print("👋 Bye!")
 

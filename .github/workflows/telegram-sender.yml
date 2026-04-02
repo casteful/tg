@@ -58,23 +58,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      # Download previous history (for duplicate prevention)
-      - name: 📂 Download video history
-        uses: actions/download-artifact@v4
-        continue-on-error: true
-        with:
-          name: video-history
-          path: ./history
-      
-      - name: 🔄 Restore video history
-        run: |
-          if [ -f "./history/sent_videos_history.json" ]; then
-            cp ./history/sent_videos_history.json ./sent_videos_history.json
-            echo "✅ Video history restored"
-          else
-            echo "ℹ️ No previous history found, starting fresh"
-          fi
-      
       # Generate custom config if manual inputs provided
       - name: ✏️ Prepare custom configuration
         if: ${{ github.event.inputs.youtube_query != '' || github.event.inputs.channel_name != '' }}
@@ -84,27 +67,23 @@ jobs:
           SORT_BY='${{ github.event.inputs.sort_by }}'
           PREFIX='${{ github.event.inputs.custom_message }}'
           
-          # Start JSON
-          echo '{' > messages.json
-          echo '  "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",' >> messages.json
-          echo '  "parse_mode": "md",' >> messages.json
-          echo '  "hourly_messages": [{' >> messages.json
-          echo '    "hours": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],' >> messages.json
-          echo '    "prefix": "'"$PREFIX"'",' >> messages.json
-          echo '    "youtube_search": {' >> messages.json
-          
-          # Add channel if specified
-          [ -n "$CHANNEL" ] && echo '      "channel": "'"$CHANNEL"'",' >> messages.json
-          # Add query if specified  
-          [ -n "$QUERY" ] && echo '      "query": "'"$QUERY"'",' >> messages.json
-          
-          # Complete JSON
-          echo '      "sort_by": "'"$SORT_BY"'",' >> messages.json
-          echo '      "max_results": 20,' >> messages.json
-          echo '      "template": "🎬 *{title}*\\n\\n📺 {channel}\\n⏱️ {duration}\\n\\n🔗 {link}"' >> messages.json
-          echo '    }' >> messages.json
-          echo '  }]' >> messages.json
-          echo '}' >> messages.json
+          cat > messages.json << EOF
+          {
+            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
+            "parse_mode": "md",
+            "hourly_messages": [{
+              "hours": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+              "prefix": "$PREFIX",
+              "youtube_search": {
+                "channel": "$CHANNEL",
+                "query": "$QUERY",
+                "sort_by": "$SORT_BY",
+                "max_results": 20,
+                "template": "🎬 *{title}*\\n\\n📺 {channel}\\n⏱️ {duration}\\n\\n🔗 {link}"
+              }
+            }]
+          }
+          EOF
           
           echo "Generated config:"
           cat messages.json
@@ -115,26 +94,11 @@ jobs:
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION_STRING: ${{ secrets.TELEGRAM_SESSION_STRING }}
           TELEGRAM_TARGET_ENTITY: ${{ secrets.TELEGRAM_TARGET_ENTITY }}
-          HISTORY_FILE: 'sent_videos_history.json'
           SKIP_HISTORY: ${{ github.event.inputs.skip_history }}
         run: python telegram_sender.py
-      
-      # Save history for next run
-      - name: 💾 Save video history
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: video-history
-          path: ./sent_videos_history.json
-          retention-days: 90
-          overwrite: true
       
       - name: ✅ Done
         run: |
           echo "======================================"
           echo "✅ Completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          if [ -f "./sent_videos_history.json" ]; then
-            SENT_COUNT=$(python3 -c "import json; d=json.load(open('./sent_videos_history.json')); print(len(d.get('videos', [])))" 2>/dev/null || echo "0")
-            echo "📊 Total videos sent: $SENT_COUNT"
-          fi
           echo "======================================"

@@ -1,6 +1,6 @@
 # Telegram YouTube Sender - GitHub Actions
 
-Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. Features channel selection, sorting options, **duplicate prevention**, and customizable templates.
+Send **hourly messages with YouTube links** from your personal Telegram account using GitHub Actions. Features channel selection, sorting options, and **duplicate prevention via Telegram history**.
 
 ## ✨ Features
 
@@ -8,35 +8,29 @@ Send **hourly messages with YouTube links** from your personal Telegram account 
 - 🔍 **YouTube Integration**: Auto-search and share YouTube videos using yt-dlp
 - 📺 **Channel Selection**: Get latest videos from specific channels
 - 📊 **Sorting Options**: Sort by latest, popular, or random
-- 🚫 **Duplicate Prevention**: Never send the same video twice!
+- 🚫 **Smart Duplicate Prevention**: Checks Telegram history - no extra files needed!
 - ⏰ **Hourly Sending**: Runs every hour via GitHub Actions cron
 - 🔐 **Secure**: All credentials stored as GitHub Secrets
-- 🎯 **Flexible Targets**: Send to users, groups, or channels
 
 ---
 
 ## 🚫 Duplicate Prevention
 
-The app automatically tracks sent videos and won't send the same one twice!
+The app **checks your Telegram chat history** to find videos already sent - no extra files or commits needed!
 
 ### How It Works
 
-1. **History Tracking**: Every sent video is recorded in `sent_videos_history.json`
-2. **Artifact Persistence**: GitHub Actions saves history between runs
-3. **Smart Selection**: Automatically finds the next unsent video
-4. **Fallback**: If all videos have been sent, shows a warning
+1. **Fetch History**: Gets last 100 messages from target chat
+2. **Extract Video IDs**: Finds YouTube video IDs from message text
+3. **Skip Duplicates**: Automatically picks an unsent video
+4. **No Files Needed**: History is checked directly from Telegram
 
-### View History Locally
+### Benefits
 
-```bash
-python history_manager.py --show
-```
-
-### Clear History
-
-```bash
-python history_manager.py --clear
-```
+- ✅ No repository commits needed
+- ✅ No merge conflicts
+- ✅ Checks what was *actually* sent
+- ✅ Works across all workflow runs
 
 ---
 
@@ -80,9 +74,9 @@ In your GitHub repository: **Settings → Secrets and variables → Actions**
 | `TELEGRAM_SESSION_STRING` | `1AZWarz...` |
 | `TELEGRAM_TARGET_ENTITY` | `me` or `@username` |
 
-### Step 4: Push to GitHub
+### Step 4: Customize and Push
 
-Push the code and enable GitHub Actions!
+Edit `messages.json` and push to GitHub!
 
 ---
 
@@ -96,13 +90,13 @@ Push the code and enable GitHub Actions!
 | `channel` | Channel name/handle | `"MrBeast"`, `"@UnrealEngine"` |
 | `sort_by` | Sorting method | `"latest"`, `"popular"`, `"random"` |
 | `max_results` | Number of results | `1` to `50` |
-| `template` | Message format | See template placeholders |
+| `template` | Message format | See placeholders below |
 
 ### Template Placeholders
 
 | Placeholder | Description | Example |
 |-------------|-------------|---------|
-| `{title}` | Video title | "UE5 Beginner Tutorial" |
+| `{title}` | Video title | "UE5 Tutorial" |
 | `{link}` | YouTube URL | "https://youtube.com/watch?v=..." |
 | `{channel}` | Channel name | "Unreal Engine" |
 | `{duration}` | Video length | "15:30" |
@@ -112,24 +106,18 @@ Push the code and enable GitHub Actions!
 
 ## 📝 Configuration Examples
 
-### Get Latest from Channel (Never Duplicates!)
+### Get Latest from Channel
 
 ```json
 {
     "youtube_search": {
         "channel": "MrBeast",
         "sort_by": "latest",
-        "max_results": 10,
+        "max_results": 20,
         "template": "🎬 {title}\n\n🔗 {link}"
     }
 }
 ```
-
-**How it works:**
-- Gets the 10 latest videos from MrBeast
-- Checks history to find videos not yet sent
-- Sends the first unsent video
-- Marks it as sent for next time
 
 ### Full Hourly Configuration
 
@@ -142,8 +130,7 @@ Push the code and enable GitHub Actions!
             "hours": [0, 1, 2, 3, 4, 5],
             "youtube_search": {
                 "channel": "Lofi Girl",
-                "sort_by": "latest",
-                "template": "🎵 {title}\n\n🔗 {link}"
+                "sort_by": "latest"
             }
         },
         {
@@ -159,6 +146,17 @@ Push the code and enable GitHub Actions!
 
 ---
 
+## ⚙️ Manual Trigger Options
+
+| Option | Description |
+|--------|-------------|
+| `youtube_query` | Custom search query |
+| `channel_name` | Specific channel |
+| `sort_by` | latest/popular/random |
+| `skip_history` | Send even if already sent |
+
+---
+
 ## 🧪 Testing
 
 ### Test YouTube Search
@@ -171,11 +169,6 @@ python telegram_sender.py --test-youtube
 python test_send.py
 ```
 
-### View History
-```bash
-python history_manager.py --show
-```
-
 ---
 
 ## 📁 Project Structure
@@ -183,28 +176,13 @@ python history_manager.py --show
 ```
 telegram-userbot-github-actions/
 ├── .github/workflows/
-│   └── telegram-sender.yml        # Single workflow (schedule + manual)
-├── telegram_sender.py              # Main script
-├── history_manager.py              # Duplicate prevention
-├── setup.py                        # Session setup
-├── test_send.py                    # Local testing
-├── messages.json                   # Message config
-├── sent_videos_history.json        # Sent video history (auto-generated)
-└── requirements.txt                # Dependencies
+│   └── telegram-sender.yml    # Single workflow
+├── telegram_sender.py          # Main script
+├── setup.py                    # Session setup
+├── test_send.py                # Local testing
+├── messages.json               # Message config
+└── requirements.txt            # Dependencies
 ```
-
----
-
-## ⚙️ Manual Trigger Options
-
-When manually triggering on GitHub:
-
-| Option | Description |
-|--------|-------------|
-| `youtube_query` | Custom search query |
-| `channel_name` | Specific channel |
-| `sort_by` | latest/popular/random |
-| `skip_history` | Send even if already sent |
 
 ---
 
@@ -212,9 +190,9 @@ When manually triggering on GitHub:
 
 | Issue | Solution |
 |-------|----------|
-| "All videos have been sent" | Clear history or add new content |
-| "No history found" | Normal for first run |
+| "All videos have been sent" | New videos will be sent when available |
 | Channel not found | Use exact channel handle (@name) |
+| Session not authorized | Re-run `--setup` |
 
 ---
 
