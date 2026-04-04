@@ -1,34 +1,68 @@
 name: Telegram YouTube Sender
 
 on:
-  # Schedule: Every 4 hours
+  # Schedule: Every 4 hours (4 times a day)
   schedule:
     - cron: '0 */4 * * *'
   
   # Manual trigger for testing
   workflow_dispatch:
     inputs:
-      youtube_query:
-        description: 'YouTube search query (optional)'
+      # Mode selection
+      mode:
+        description: 'Search mode'
+        required: true
+        default: 'channels'
+        type: choice
+        options:
+          - channels      # Multiple channels (random selection)
+          - channel       # Single channel
+          - search        # YouTube search query
+      
+      # Multiple channels (comma-separated for random selection)
+      channels:
+        description: 'Multiple channels (comma-separated, e.g., "IGN,GameTrailers,PlayStation")'
         required: false
         default: ''
+      
+      # Single channel
       channel_name:
-        description: 'Channel name (e.g., "MrBeast" or "@UnrealEngine")'
+        description: 'Single channel name (e.g., "MrBeast" or "@UnrealEngine")'
         required: false
         default: ''
+      
+      # YouTube search
+      youtube_query:
+        description: 'YouTube search query (for search mode)'
+        required: false
+        default: ''
+      
+      # Common options
       sort_by:
         description: 'Sort method'
-        required: false
+        required: true
         default: 'latest'
         type: choice
         options:
           - latest
           - popular
           - random
+      
+      max_results:
+        description: 'Max videos to fetch per channel'
+        required: false
+        default: '10'
+      
+      template:
+        description: 'Message template (use {title}, {link}, {channel}, {duration}, {views})'
+        required: false
+        default: ''
+      
       custom_message:
         description: 'Custom message prefix (optional)'
         required: false
         default: ''
+      
       skip_history:
         description: 'Skip duplicate checking'
         required: false
@@ -58,34 +92,89 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       
-      # Generate custom config if manual inputs provided
+      # Generate custom config for manual triggers
       - name: ✏️ Prepare custom configuration
-        if: ${{ github.event.inputs.youtube_query != '' || github.event.inputs.channel_name != '' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
+          MODE='${{ github.event.inputs.mode }}'
+          CHANNELS='${{ github.event.inputs.channels }}'
           CHANNEL='${{ github.event.inputs.channel_name }}'
           QUERY='${{ github.event.inputs.youtube_query }}'
           SORT_BY='${{ github.event.inputs.sort_by }}'
+          MAX_RESULTS='${{ github.event.inputs.max_results }}'
+          TEMPLATE='${{ github.event.inputs.template }}'
           PREFIX='${{ github.event.inputs.custom_message }}'
           
-          cat > messages.json << EOF
+          # Default template if not provided
+          if [ -z "$TEMPLATE" ]; then
+            TEMPLATE='🎬 *{title}*\\n\\n📺 {channel}\\n⏱️ {duration}\\n\\n🔗 {link}'
+          fi
+          
+          # Build youtube_search config based on mode
+          if [ "$MODE" = "channels" ] && [ -n "$CHANNELS" ]; then
+            # Multiple channels mode - convert comma-separated to JSON array
+            CHANNELS_JSON=$(echo "$CHANNELS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; ""))')
+            YOUTUBE_CONFIG=$(cat << EOF
           {
-            "default_target": "${{ secrets.TELEGRAM_TARGET_ENTITY }}",
-            "parse_mode": "md",
-            "hourly_messages": [{
-              "hours": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
-              "prefix": "$PREFIX",
-              "youtube_search": {
+                "channels": $CHANNELS_JSON,
+                "sort_by": "$SORT_BY",
+                "max_results": $MAX_RESULTS,
+                "template": "$TEMPLATE"
+              }
+          EOF
+          )
+            echo "🎲 Mode: Multiple channels (random selection)"
+            echo "   Channels: $CHANNELS"
+          
+          elif [ "$MODE" = "channel" ] && [ -n "$CHANNEL" ]; then
+            # Single channel mode
+            YOUTUBE_CONFIG=$(cat << EOF
+          {
                 "channel": "$CHANNEL",
+                "sort_by": "$SORT_BY",
+                "max_results": $MAX_RESULTS,
+                "template": "$TEMPLATE"
+              }
+          EOF
+          )
+            echo "📺 Mode: Single channel"
+            echo "   Channel: $CHANNEL"
+          
+          elif [ "$MODE" = "search" ] && [ -n "$QUERY" ]; then
+            # Search mode
+            YOUTUBE_CONFIG=$(cat << EOF
+          {
                 "query": "$QUERY",
                 "sort_by": "$SORT_BY",
-                "max_results": 20,
-                "template": "🎬 *{title}*\\n\\n📺 {channel}\\n⏱️ {duration}\\n\\n🔗 {link}"
+                "max_results": $MAX_RESULTS,
+                "template": "$TEMPLATE"
               }
+          EOF
+          )
+            echo "🔍 Mode: YouTube search"
+            echo "   Query: $QUERY"
+          
+          else
+            echo "⚠️ No valid configuration provided, using default messages.json"
+            exit 0
+          fi
+          
+          # Create the full config
+          cat > messages.json << EOF
+          {
+            "default_target": "me",
+            "parse_mode": "md",
+            "hourly_messages": [{
+              "comment": "Manual trigger - $MODE mode",
+              "hours": [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
+              "prefix": "$PREFIX",
+              "youtube_search": $YOUTUBE_CONFIG
             }]
           }
           EOF
           
-          echo "Generated config:"
+          echo ""
+          echo "📄 Generated config:"
           cat messages.json
       
       - name: 🚀 Send Telegram message
