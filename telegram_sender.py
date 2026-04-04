@@ -449,7 +449,8 @@ class TelegramSender:
             else:
                 query = youtube_config.get('query', '')
                 channel = youtube_config.get('channel', '')
-                search_desc = f"'{query}'" if query else f"channel '{channel}'"
+                channels = youtube_config.get('channels', [])
+                search_desc = f"'{query}'" if query else f"channel '{channel or channels}'"
                 message_parts.append(f"⚠️ No new YouTube videos found for {search_desc}")
         
         elif config.get('youtube_link'):
@@ -467,6 +468,7 @@ class TelegramSender:
         """
         Get a video that hasn't been sent yet.
         Checks Telegram history to avoid duplicates.
+        Supports 'channels' array for random channel selection.
         """
         max_results = youtube_config.get('max_results', 15)
         search_max = max(30, max_results * 2)
@@ -475,16 +477,33 @@ class TelegramSender:
         config_copy['max_results'] = search_max
         
         videos = []
+        selected_channel = None
         
-        channel = config_copy.get('channel')
         query = config_copy.get('query', '')
         sort_by = config_copy.get('sort_by', 'latest')
         
-        if channel:
+        # NEW: Check for 'channels' array (multiple channels - random selection)
+        channels_list = config_copy.get('channels', [])
+        
+        if channels_list:
+            # Randomly select one channel from the list
+            selected_channel = random.choice(channels_list)
+            print(f"   🎲 Random channel selected: {selected_channel} (from {len(channels_list)} channels)")
+            
             if query:
-                videos = self.youtube.search_channel(channel, query, search_max, sort_by)
+                videos = self.youtube.search_channel(selected_channel, query, search_max, sort_by)
             else:
-                videos = self.youtube.get_channel_videos(channel, search_max, sort_by)
+                videos = self.youtube.get_channel_videos(selected_channel, search_max, sort_by)
+        
+        # Single channel (backward compatible)
+        elif config_copy.get('channel'):
+            selected_channel = config_copy.get('channel')
+            if query:
+                videos = self.youtube.search_channel(selected_channel, query, search_max, sort_by)
+            else:
+                videos = self.youtube.get_channel_videos(selected_channel, search_max, sort_by)
+        
+        # Regular search (no channel)
         elif query:
             videos = self.youtube.search(query, search_max, sort_by)
         
@@ -499,13 +518,19 @@ class TelegramSender:
                 video_id = video.get('id')
                 if video_id and video_id not in sent_ids:
                     print(f"   ✨ Found unsent video: {video.get('title', 'Unknown')[:40]}")
+                    # Add selected channel info to video dict for reference
+                    if selected_channel:
+                        video['selected_from_channel'] = selected_channel
                     return video
             
             print(f"   ⚠️ All {len(videos)} videos have already been sent!")
             return None
         
         # No entity or skip_history - return first video
-        return videos[0]
+        video = videos[0]
+        if selected_channel:
+            video['selected_from_channel'] = selected_channel
+        return video
     
     async def build_message(self, config: dict) -> str:
         """Build a message from configuration with YouTube support."""
@@ -531,35 +556,25 @@ class TelegramSender:
             "parse_mode": "md",
             "hourly_messages": [
                 {
-                    "hours": [0, 1, 2, 3, 4, 5],
+                    "comment": "Gaming videos",
+                    "hours": [0, 6, 12, 18],
+                    "prefix": "🎮 **Gaming Update**",
                     "youtube_search": {
-                        "query": "relaxing music night",
-                        "sort_by": "popular",
-                        "template": "🌙 **Night Vibes**\n\n🎬 {title}\n📺 {channel}\n⏱️ {duration}\n\n🔗 {link}"
+                        "channels": ["IGN", "GameTrailers", "PlayStation"],
+                        "sort_by": "latest",
+                        "max_results": 5,
+                        "template": "{link}"
                     }
                 },
                 {
-                    "hours": [6, 7, 8, 9, 10, 11],
+                    "comment": "Morning motivation",
+                    "hours": [7, 8, 9],
+                    "prefix": "☀️ **Morning Motivation**",
                     "youtube_search": {
-                        "query": "morning motivation",
+                        "channels": ["MotivationHub", "BeInspired", "Goalcast"],
                         "sort_by": "popular",
-                        "template": "☀️ **Morning Motivation**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
-                    }
-                },
-                {
-                    "hours": [12, 13, 14, 15, 16, 17],
-                    "youtube_search": {
-                        "query": "productive music",
-                        "sort_by": "popular",
-                        "template": "🎯 **Productivity Boost**\n\n🎬 {title}\n⏱️ {duration}\n\n🔗 {link}"
-                    }
-                },
-                {
-                    "hours": [18, 19, 20, 21, 22, 23],
-                    "youtube_search": {
-                        "query": "evening chill music",
-                        "sort_by": "random",
-                        "template": "🌙 **Evening Chill**\n\n🎬 {title}\n📺 {channel}\n\n🔗 {link}"
+                        "max_results": 5,
+                        "template": "🎬 {title}\n\n🔗 {link}"
                     }
                 }
             ]
@@ -656,8 +671,9 @@ async def test_youtube_search():
     print("2. Get latest from channel")
     print("3. Search within a channel")
     print("4. Get popular videos")
+    print("5. Test random channel selection")
     
-    choice = input("\nSelect option (1-4): ")
+    choice = input("\nSelect option (1-5): ")
     
     if choice == '1':
         query = input("Enter search query: ") or "ue5 tutorial"
@@ -680,6 +696,13 @@ async def test_youtube_search():
     elif choice == '4':
         query = input("Enter search query: ") or "python tutorial"
         videos = searcher.search(query, max_results=5, sort_by='popular')
+    
+    elif choice == '5':
+        channels_input = input("Enter channels (comma-separated): ") or "IGN,GameTrailers,PlayStation"
+        channels = [c.strip() for c in channels_input.split(',')]
+        selected = random.choice(channels)
+        print(f"\n🎲 Randomly selected: {selected} (from {len(channels)} channels)")
+        videos = searcher.get_channel_videos(selected, max_results=5, sort_by='latest')
     
     else:
         print("Invalid choice!")

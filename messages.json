@@ -7,7 +7,7 @@
             "hours": [0],
             "prefix": "",
             "youtube_search": {
-                "channel": "IGN",
+                "channels": ["IGN", "GameTrailers", "ENFANT TERRIBLE"],
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
@@ -15,10 +15,21 @@
         },
         {
             "comment": "",
-            "hours": [6],
+            "hours": [4],
             "prefix": "",
             "youtube_search": {
-                "channel": "Unreal Engine",
+                "channels": ["Unreal Engine", "Unity", "Movie VFX"],
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [8],
+            "prefix": "",
+            "youtube_search": {
+                "channels": ["IGN Movie Trailers", "Netflix", "Rotten Tomatoes Trailers"],
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
@@ -29,7 +40,7 @@
             "hours": [12],
             "prefix": "",
             "youtube_search": {
-                "channel": "GameTrailers",
+                "channels": ["Bad Decisions Studio", "Jonathan Blow highlights", "Fireship"],
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
@@ -37,10 +48,21 @@
         },
         {
             "comment": "",
-            "hours": [18],
+            "hours": [16],
             "prefix": "",
             "youtube_search": {
-                "channel": "IGN Movie Trailers",
+                "channels": ["PlayStation", "Houdini", "Unreal University"],
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [20],
+            "prefix": "",
+            "youtube_search": {
+                "channels": ["Asmongold TV", "A24", "NVIDIA Game Developer"],
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
