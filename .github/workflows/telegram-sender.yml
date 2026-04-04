@@ -3,7 +3,7 @@ name: Telegram YouTube Sender
 on:
   # Schedule: Every hour
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 */6 * * *'
   
   # Manual trigger for testing
   workflow_dispatch:

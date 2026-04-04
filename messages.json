@@ -4,89 +4,45 @@
     "hourly_messages": [
         {
             "comment": "",
-            "hours": [0, 8, 16],
+            "hours": [0],
             "prefix": "",
             "youtube_search": {
                 "channel": "IGN",
                 "sort_by": "latest",
-                "max_results": 1,
+                "max_results": 5,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [1, 9, 17],
+            "hours": [6],
             "prefix": "",
             "youtube_search": {
                 "channel": "Unreal Engine",
                 "sort_by": "latest",
-                "max_results": 1,
+                "max_results": 5,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [2, 10, 18],
-            "prefix": "",
-            "youtube_search": {
-                "channel": "Unity",
-                "sort_by": "latest",
-                "max_results": 1,
-                "template": "{link}"
-            }
-        },
-        {
-            "comment": "",
-            "hours": [3, 11, 19],
-            "prefix": "",
-            "youtube_search": {
-                "query": "ue5 tutorial",
-                "sort_by": "latest",
-                "max_results": 1,
-                "template": "{link}"
-            }
-        },
-        {
-            "comment": "",
-            "hours": [4, 12, 20],
-            "prefix": "",
-            "youtube_search": {
-                "channel": "ENFANT TERRIBLE",
-                "sort_by": "latest",
-                "max_results": 1,
-                "template": "{link}"
-            }
-        },
-        {
-            "comment": "",
-            "hours": [5, 13, 21],
+            "hours": [12],
             "prefix": "",
             "youtube_search": {
                 "channel": "GameTrailers",
                 "sort_by": "latest",
-                "max_results": 1,
+                "max_results": 5,
                 "template": "{link}"
             }
         },
         {
             "comment": "",
-            "hours": [6, 14, 22],
+            "hours": [18],
             "prefix": "",
             "youtube_search": {
                 "channel": "IGN Movie Trailers",
                 "sort_by": "latest",
-                "max_results": 1,
-                "template": "{link}"
-            }
-        },
-        {
-            "comment": "",
-            "hours": [7, 15, 23],
-            "prefix": "",
-            "youtube_search": {
-                "channel": "ONE Media",
-                "sort_by": "latest",
-                "max_results": 1,
+                "max_results": 5,
                 "template": "{link}"
             }
         }
