@@ -51,7 +51,7 @@
             "hours": [16],
             "prefix": "",
             "youtube_search": {
-                "channels": ["PlayStation", "Houdini", "Unreal University"],
+                "channels": ["PlayStation", "@houdini3d", "Unreal University"],
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
