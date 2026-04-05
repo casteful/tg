@@ -451,7 +451,7 @@ class TelegramSender:
                 channel = youtube_config.get('channel', '')
                 channels = youtube_config.get('channels', [])
                 search_desc = f"'{query}'" if query else f"channel '{channel or channels}'"
-                message_parts.append(f"⚠️ No new YouTube videos found for {search_desc}")
+                message_parts.append(f"obana {search_desc}")
         
         elif config.get('youtube_link'):
             message_parts.append(f"🔗 {config['youtube_link']}")

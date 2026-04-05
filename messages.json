@@ -4,10 +4,10 @@
     "hourly_messages": [
         {
             "comment": "",
-            "hours": [0],
+            "hours": [4],
             "prefix": "",
             "youtube_search": {
-                "channels": ["IGN", "GameTrailers", "ENFANT TERRIBLE"],
+                "channel": "@IGN",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
@@ -15,10 +15,32 @@
         },
         {
             "comment": "",
-            "hours": [4],
+            "hours": [5],
             "prefix": "",
             "youtube_search": {
-                "channels": ["Unreal Engine", "Unity", "Movie VFX"],
+                "channel": "@UnrealEngine",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [6],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@IGNMovieTrailers",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+        {
+            "comment": "",
+            "hours": [7],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@AsmongoldClips",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
@@ -29,40 +51,172 @@
             "hours": [8],
             "prefix": "",
             "youtube_search": {
-                "channels": ["IGN Movie Trailers", "Netflix", "Rotten Tomatoes Trailers"],
+                "channel": "@badxstudio",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
             }
         },
-        {
+                {
+            "comment": "",
+            "hours": [9],
+            "prefix": "",
+            "youtube_search": {
+                "channels": ["@PlayStation", "@gamespot"],
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [10],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@AsmonTV",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [11],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@GameTrailers",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
             "comment": "",
             "hours": [12],
             "prefix": "",
             "youtube_search": {
-                "channels": ["Bad Decisions Studio", "Jonathan Blow highlights", "Fireship"],
+                "channel": "@unity",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
             }
         },
-        {
+                {
+            "comment": "",
+            "hours": [13],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@Netflix",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [14],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@JBH-p5b",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [15],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@houdini3d",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
             "comment": "",
             "hours": [16],
             "prefix": "",
             "youtube_search": {
-                "channels": ["PlayStation", "@houdini3d", "Unreal University"],
+                "channel": "@A24",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
             }
         },
-        {
+                {
+            "comment": "",
+            "hours": [17],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@enfant-terrible",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [18],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@movievfx",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [19],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@RottenTomatoesTRAILERS",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
             "comment": "",
             "hours": [20],
             "prefix": "",
             "youtube_search": {
-                "channels": ["Asmongold TV", "A24", "NVIDIA Game Developer"],
+                "channel": "@Fireship",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [21],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@UnrealUniversity",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [22],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@gamefromscratch",
+                "sort_by": "latest",
+                "max_results": 5,
+                "template": "{link}"
+            }
+        },
+                {
+            "comment": "",
+            "hours": [23],
+            "prefix": "",
+            "youtube_search": {
+                "channel": "@NVIDIAGameDeveloper",
                 "sort_by": "latest",
                 "max_results": 5,
                 "template": "{link}"
